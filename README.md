@@ -43,7 +43,7 @@ sudo apt install python3-tk
 # Clone or download the memento directory
 # Then run:
 cd memento
-python3 app.py
+python3 memento.py
 ```
 
 ### macOS
@@ -51,7 +51,7 @@ python3 app.py
 ```bash
 # tkinter is usually included with Python on macOS
 cd memento
-python3 app.py
+python3 memento.py
 ```
 
 ### Windows
@@ -59,7 +59,7 @@ python3 app.py
 ```bash
 # tkinter is usually included with Python on Windows
 cd memento
-python app.py
+python memento.py
 ```
 
 ## Usage
@@ -69,7 +69,7 @@ python app.py
 Run the main application:
 
 ```bash
-python3 app.py
+python3 memento.py
 ```
 
 ### First Launch
@@ -115,7 +115,7 @@ Each memento uses a ring buffer to store multiple versions:
 
 The application consists of several modules:
 
-- `app.py`: Main application entry point and workflow management
+- `memento.py`: Main application entry point and workflow management
 - `storage.py`: File management and ring buffer logic
 - `editor.py`: Main text editor window
 - `selector.py`: Memento selection interface

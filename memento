@@ -19,7 +19,7 @@ os.chdir(script_dir)
 
 # Import and run the main application
 try:
-    from app import main
+    from memento import main
     main()
 except KeyboardInterrupt:
     print("\nMemento closed by user.")
