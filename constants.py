@@ -20,7 +20,8 @@ LOG_FILE = "memento.log"
 
 # Autosave settings
 IDLE_THRESHOLD_SECONDS = 1.5  # Save after user stops typing for this long
-CHAR_COUNT_THRESHOLD = 50     # Save after this many characters typed
+CHAR_COUNT_THRESHOLDS = [2, 4, 8, 16, 32, 64]  # Dynamic character count thresholds
+INITIAL_CHAR_THRESHOLD = 2    # Start with the smallest threshold
 
 # Ring buffer settings
 MIN_BUFFER_SIZE = 3

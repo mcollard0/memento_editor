@@ -10,7 +10,7 @@ import threading
 from typing import Optional
 import pathlib
 
-from constants import APP_NAME, CHAR_COUNT_THRESHOLD
+from constants import APP_NAME
 from storage import FileManager
 from autosave import IdleSaver, SaveStatus
 
@@ -30,7 +30,7 @@ class EditorWindow:
         self.root.minsize(400, 300)
         
         # Create autosave manager
-        self.idle_saver = IdleSaver(self._save_callback, char_threshold=CHAR_COUNT_THRESHOLD)
+        self.idle_saver = IdleSaver(self._save_callback)
         
         self._create_menu()
         self._create_widgets()
@@ -266,13 +266,17 @@ class EditorWindow:
 A simple, elegant text editor with automatic saving and version history through ring buffers.
 
 Features:
-• Automatic saving when you stop typing OR after 50 characters
+• Adaptive auto-saving: starts at 2 characters, grows to 64 based on typing patterns
+• Idle detection: saves after 1.5 seconds of inactivity
 • Ring buffer versioning (3-50 save points)
 • Multiple mementos (documents)
 • Export to external files with Ctrl+S
 • Cross-platform compatibility
 
 Data stored in: ~/.Memento/
+
+Dynamic Thresholds: 2, 4, 8, 16, 32, 64 characters
+Adapts based on your average typing between pauses
 
 Keyboard Shortcuts:
 Ctrl+S - Save to ring buffer AND export to file
