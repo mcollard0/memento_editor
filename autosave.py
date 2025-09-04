@@ -8,7 +8,7 @@ Fixes the deadlock issue in the original implementation.
 import threading
 import time
 from typing import Callable, Optional
-from constants import IDLE_THRESHOLD_SECONDS, CHAR_COUNT_THRESHOLDS, INITIAL_CHAR_THRESHOLD
+from constants import IDLE_THRESHOLD_SECONDS
 
 
 class IdleSaver:
@@ -16,7 +16,7 @@ class IdleSaver:
     
     def __init__(self, save_callback: Callable[[], None], idle_seconds: float = IDLE_THRESHOLD_SECONDS):
         """
-        Initialize the IdleSaver with dynamic character thresholds.
+        Initialize the IdleSaver with progressive character thresholds.
         
         Args:
             save_callback: Function to call when saving should occur
@@ -24,16 +24,18 @@ class IdleSaver:
         """
         self.save_callback = save_callback
         self.idle_seconds = idle_seconds
-        self.char_thresholds = CHAR_COUNT_THRESHOLDS.copy()
-        self.current_threshold_index = 0
-        self.char_threshold = INITIAL_CHAR_THRESHOLD
+        
+        # Progressive threshold system: starts at 2, increases by 2 each save up to 20
+        self.char_threshold = 2  # Start at 2 characters
+        self.max_threshold = 20  # Maximum threshold
+        self.threshold_increment = 2  # Increase by 2 each time
+        
         self._timer: Optional[threading.Timer] = None
         self._lock = threading.Lock()
         self._active = False
         self._char_count_since_save = 0
         
-        # Typing pattern analysis
-        self._typing_sessions = []  # List of (char_count, duration) tuples
+        # Session tracking for display purposes
         self._session_start_time = None
         self._session_char_count = 0
     
@@ -91,63 +93,21 @@ class IdleSaver:
     
     def _on_idle_timeout(self):
         """Called when the idle timeout expires."""
-        # Record typing session data
-        session_data = None
-        
+        # Reset session tracking
         with self._lock:
-            # Record typing session if we have data
-            if self._session_start_time is not None and self._session_char_count > 0:
-                session_duration = time.time() - self._session_start_time
-                session_data = (self._session_char_count, session_duration)
-                
-                # Reset session tracking
+            if self._session_start_time is not None:
                 self._session_start_time = None
                 self._session_char_count = 0
         
-        # Process session data and trigger save OUTSIDE the lock
-        if session_data:
-            self._process_session_data(session_data)
-        
         self._trigger_save("idle timeout")
     
-    def _process_session_data(self, session_data):
-        """Process typing session data and adjust thresholds."""
-        chars, duration = session_data
-        
+    def _increase_threshold(self):
+        """Progressively increase the character threshold after each save."""
         with self._lock:
-            self._typing_sessions.append((chars, duration))
-            
-            # Keep only recent sessions (last 20)
-            if len(self._typing_sessions) > 20:
-                self._typing_sessions = self._typing_sessions[-20:]
-            
-            # Analyze and adjust threshold
-            self._adjust_threshold()
-    
-    def _adjust_threshold(self):
-        """Adjust character threshold based on typing patterns.
-        NOTE: This method assumes the lock is already held."""
-        if len(self._typing_sessions) < 3:  # Need at least 3 sessions to analyze
-            return
-        
-        # Calculate average characters per session
-        total_chars = sum(chars for chars, duration in self._typing_sessions)
-        avg_chars_per_session = total_chars / len(self._typing_sessions)
-        
-        # Find the appropriate threshold based on average typing pattern
-        new_threshold_index = 0
-        for i, threshold in enumerate(self.char_thresholds):
-            if avg_chars_per_session >= threshold:
-                new_threshold_index = i
-            else:
-                break
-        
-        # Update threshold if it changed
-        if new_threshold_index != self.current_threshold_index:
-            self.current_threshold_index = new_threshold_index
-            old_threshold = self.char_threshold
-            self.char_threshold = self.char_thresholds[new_threshold_index]
-            print(f"Auto-save threshold adjusted: {old_threshold} → {self.char_threshold} chars (avg: {avg_chars_per_session:.1f})")
+            if self.char_threshold < self.max_threshold:
+                old_threshold = self.char_threshold
+                self.char_threshold = min(self.char_threshold + self.threshold_increment, self.max_threshold)
+                print(f"Auto-save threshold increased: {old_threshold} → {self.char_threshold} chars")
     
     def _trigger_save(self, reason: str):
         """Trigger a save operation and reset counters.
@@ -172,25 +132,13 @@ class IdleSaver:
             with self._lock:
                 self._char_count_since_save = 0
                 
-                # If this was a character count save, record the session
-                if reason == "character count" and self._session_start_time is not None:
-                    session_duration = time.time() - self._session_start_time
-                    if session_duration > 0:  # Valid session
-                        session_data = (self._session_char_count, session_duration)
-                        
-                        # Process session data while holding lock
-                        self._typing_sessions.append(session_data)
-                        
-                        # Keep only recent sessions (last 20)
-                        if len(self._typing_sessions) > 20:
-                            self._typing_sessions = self._typing_sessions[-20:]
-                        
-                        # Analyze and adjust threshold
-                        self._adjust_threshold()
-                    
-                    # Reset session tracking
+                # Reset session tracking
+                if self._session_start_time is not None:
                     self._session_start_time = None
                     self._session_char_count = 0
+            
+            # Increase threshold progressively after successful save
+            self._increase_threshold()
                     
         except Exception as e:
             # Don't let save errors crash the timer
@@ -216,6 +164,8 @@ class IdleSaver:
                 # Reset character count after successful save
                 with self._lock:
                     self._char_count_since_save = 0
+                # Increase threshold progressively after successful save
+                self._increase_threshold()
             except Exception as e:
                 print(f"Error during forced save: {e}")
 
