@@ -1,0 +1,6 @@
+# Memento Text Editor Requirements
+# This application uses only Python standard library modules.
+# No external dependencies are required for basic functionality.
+
+# Optional development dependencies:
+# pytest>=6.0.0  # For running tests (uncomment if needed)

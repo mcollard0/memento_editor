@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""
+Memento Text Editor Launcher
+A simple, elegant text editor with automatic saving and version history.
+"""
+
+import sys
+import os
+import pathlib
+
+# Get the directory containing this script
+script_dir = pathlib.Path(__file__).parent.absolute()
+
+# Add the script directory to Python path
+sys.path.insert(0, str(script_dir))
+
+# Change to the script directory to ensure relative imports work
+os.chdir(script_dir)
+
+# Import and run the main application
+try:
+    from app import main
+    main()
+except KeyboardInterrupt:
+    print("\nMemento closed by user.")
+except Exception as e:
+    print(f"Error starting Memento: {e}")
+    sys.exit(1)

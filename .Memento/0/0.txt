@@ -1,0 +1,12 @@
+Welcome to Memento!
+
+This is your first memento. Memento automatically saves your work as you type, maintaining a ring buffer of versions so you never lose your progress.
+
+Key features:
+• Auto-saves after 50 characters or 1.5 seconds of inactivity
+• Ring buffer versioning (3-50 save points based on file size)  
+• Export to external files with Ctrl+S
+• Multiple mementos for different documents
+• Clean, distraction-free writing interface
+
+Start typing to see the auto-save in action!

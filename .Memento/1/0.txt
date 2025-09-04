@@ -1,0 +1,11 @@
+So I was overclocking the ram on my pc, and I went a bit too far. I booted and was writing a lengthy response in LinkedIn, and the Chrome window crashed. After a quick error check, I refreshed the window. 
+
+And my hard earned, much considered, too lengthy and probably annoying message was gone. 
+
+So. Here we are. A text editor that saves constantly to a ring buffer. 
+
+The next logical step is to integrate it into the GUI so that whatever window you're working on, it captures the text, and saves it. 
+
+At this point, I thought it would be creepy, requires encryption, privacy concerns, and so forth. 
+
+But as a mental exercise, I enjoyed this. 
