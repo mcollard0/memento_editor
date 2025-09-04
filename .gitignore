@@ -50,3 +50,8 @@ Thumbs.db
 
 # Application specific - exclude user data in .Memento except demo files
 # The demo .Memento folder with sample mementos will be included
+
+# Troubleshooting directories
+test/
+backup/
+debug/
