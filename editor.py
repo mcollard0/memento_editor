@@ -10,9 +10,17 @@ import threading
 from typing import Optional
 import pathlib
 
-from constants import APP_NAME
+from constants import APP_NAME, MEMENTO_ROOT
 from storage import FileManager
 from autosave import IdleSaver, SaveStatus
+
+# Optional encryption support
+try:
+    from encryption import EncryptionManager, get_missing_dependencies
+    from encryption_dialog import get_passphrase_for_creation, get_passphrase_for_decryption
+    HAS_ENCRYPTION = True
+except ImportError:
+    HAS_ENCRYPTION = False
 
 
 class EditorWindow:
@@ -22,6 +30,12 @@ class EditorWindow:
         self.file_manager = file_manager
         self.save_status = SaveStatus()
         self.is_closing = False
+        
+        # Initialize encryption manager if available
+        self.encryption_manager = None
+        self.current_passphrase = None
+        if HAS_ENCRYPTION:
+            self.encryption_manager = EncryptionManager(MEMENTO_ROOT)
         
         # Create main window
         self.root = tk.Tk()
@@ -54,6 +68,18 @@ class EditorWindow:
         
         file_menu.add_command(label="Save to File...", command=self._save_to_file, accelerator="Ctrl+S")
         file_menu.add_separator()
+        
+        # Encryption submenu (if available)
+        if HAS_ENCRYPTION and self.encryption_manager and self.encryption_manager.has_encryption_support:
+            encryption_menu = tk.Menu(file_menu, tearoff=0)
+            file_menu.add_cascade(label="Encryption", menu=encryption_menu)
+            
+            encryption_menu.add_command(label="Enable Encryption...", command=self._enable_encryption)
+            encryption_menu.add_command(label="Change Passphrase...", command=self._change_passphrase)
+            encryption_menu.add_separator()
+            encryption_menu.add_command(label="Disable Encryption", command=self._disable_encryption)
+            file_menu.add_separator()
+        
         file_menu.add_command(label="New Memento", command=self._new_memento, accelerator="Ctrl+N")
         file_menu.add_command(label="Open Memento...", command=self._open_memento, accelerator="Ctrl+O")
         file_menu.add_separator()
@@ -148,16 +174,48 @@ class EditorWindow:
     
     def _load_content(self):
         """Load the current content from the file manager."""
-        content = self.file_manager.load_current_snapshot()
-        self.text_widget.delete('1.0', tk.END)
-        self.text_widget.insert('1.0', content)
-        
-        # Mark as saved since we just loaded
-        self.save_status.mark_saved()
-        self._update_status_bar()
-        
-        # Reset undo/redo stack
-        self.text_widget.edit_reset()
+        try:
+            # Check if memento is encrypted and we need passphrase
+            if self.file_manager.is_encrypted() and not self.current_passphrase:
+                passphrase = get_passphrase_for_decryption(self.root)
+                if not passphrase:
+                    # User cancelled passphrase entry
+                    self.root.destroy()
+                    return
+                
+                # Verify passphrase by attempting to load
+                try:
+                    self.file_manager.verify_passphrase(passphrase)
+                    self.current_passphrase = passphrase
+                except Exception:
+                    messagebox.showerror(
+                        "Invalid Passphrase",
+                        "The passphrase you entered is incorrect."
+                    )
+                    self.root.destroy()
+                    return
+            
+            # Load content (will be decrypted automatically if encrypted)
+            content = self.file_manager.load_current_snapshot()
+            self.text_widget.delete('1.0', tk.END)
+            self.text_widget.insert('1.0', content)
+            
+            # Update window title to show encryption status
+            self._update_window_title()
+            
+            # Mark as saved since we just loaded
+            self.save_status.mark_saved()
+            self._update_status_bar()
+            
+            # Reset undo/redo stack
+            self.text_widget.edit_reset()
+            
+        except Exception as e:
+            messagebox.showerror(
+                "Load Error",
+                f"Failed to load memento content: {str(e)}"
+            )
+            self.root.destroy()
     
     def _on_key_press(self, event=None):
         """Handle key press events to detect character additions."""
@@ -348,6 +406,164 @@ Ctrl+Y - Redo"""
             
         except Exception as e:
             messagebox.showerror("Error", f"Error opening memento selector: {str(e)}")
+    
+    def _enable_encryption(self):
+        """Enable encryption for this memento."""
+        if not self.encryption_manager or not self.encryption_manager.has_encryption_support:
+            missing_deps = get_missing_dependencies()
+            messagebox.showerror(
+                "Encryption Not Available",
+                f"Encryption requires additional packages: {', '.join(missing_deps)}\n\n"
+                f"Install with: pip install {' '.join(missing_deps)}"
+            )
+            return
+        
+        # Check if already encrypted
+        if self.file_manager.is_encrypted():
+            messagebox.showinfo(
+                "Already Encrypted",
+                "This memento is already encrypted."
+            )
+            return
+        
+        try:
+            # Get passphrase from user
+            passphrase = get_passphrase_for_creation(
+                self.root,
+                show_size_limit=self.encryption_manager.has_mongodb_support,
+                max_size_mb=self.encryption_manager.estimated_max_size_mb
+            )
+            
+            if not passphrase:  # User cancelled or entered blank
+                return
+            
+            # Force save current content to ensure it's up to date
+            self._force_save()
+            
+            # Enable encryption in file manager
+            self.file_manager.enable_encryption(passphrase)
+            
+            # Store passphrase for this session
+            self.current_passphrase = passphrase
+            
+            # Update window title to show encryption status
+            self._update_window_title()
+            
+            messagebox.showinfo(
+                "Encryption Enabled",
+                "Encryption has been enabled for this memento.\n"
+                "Your content is now protected and will be compressed before storage."
+            )
+            
+        except Exception as e:
+            messagebox.showerror("Encryption Error", f"Failed to enable encryption: {str(e)}")
+    
+    def _change_passphrase(self):
+        """Change the encryption passphrase."""
+        if not self.encryption_manager or not self.encryption_manager.has_encryption_support:
+            messagebox.showerror("Encryption Not Available", "Encryption is not available.")
+            return
+        
+        if not self.file_manager.is_encrypted():
+            messagebox.showinfo(
+                "Not Encrypted",
+                "This memento is not encrypted. Enable encryption first."
+            )
+            return
+        
+        try:
+            # Get current passphrase if not already known
+            if not self.current_passphrase:
+                current_passphrase = get_passphrase_for_decryption(self.root)
+                if not current_passphrase:
+                    return
+                
+                # Verify current passphrase
+                if not self.file_manager.verify_passphrase(current_passphrase):
+                    messagebox.showerror("Invalid Passphrase", "The current passphrase is incorrect.")
+                    return
+                
+                self.current_passphrase = current_passphrase
+            
+            # Get new passphrase
+            new_passphrase = get_passphrase_for_creation(
+                self.root,
+                show_size_limit=self.encryption_manager.has_mongodb_support,
+                max_size_mb=self.encryption_manager.estimated_max_size_mb
+            )
+            
+            if not new_passphrase:
+                return
+            
+            # Change passphrase in file manager
+            self.file_manager.change_passphrase(self.current_passphrase, new_passphrase)
+            self.current_passphrase = new_passphrase
+            
+            messagebox.showinfo(
+                "Passphrase Changed",
+                "The encryption passphrase has been successfully changed."
+            )
+            
+        except Exception as e:
+            messagebox.showerror("Passphrase Change Error", f"Failed to change passphrase: {str(e)}")
+    
+    def _disable_encryption(self):
+        """Disable encryption for this memento."""
+        if not self.file_manager.is_encrypted():
+            messagebox.showinfo(
+                "Not Encrypted",
+                "This memento is not encrypted."
+            )
+            return
+        
+        # Confirm with user
+        response = messagebox.askyesno(
+            "Disable Encryption",
+            "Are you sure you want to disable encryption?\n\n"
+            "This will decrypt your content and store it in plain text.\n"
+            "This action cannot be undone.",
+            default='no'
+        )
+        
+        if not response:
+            return
+        
+        try:
+            # Get current passphrase if not already known
+            if not self.current_passphrase:
+                current_passphrase = get_passphrase_for_decryption(self.root)
+                if not current_passphrase:
+                    return
+                
+                # Verify current passphrase
+                if not self.file_manager.verify_passphrase(current_passphrase):
+                    messagebox.showerror("Invalid Passphrase", "The current passphrase is incorrect.")
+                    return
+                
+                self.current_passphrase = current_passphrase
+            
+            # Disable encryption in file manager
+            self.file_manager.disable_encryption(self.current_passphrase)
+            self.current_passphrase = None
+            
+            # Update window title
+            self._update_window_title()
+            
+            messagebox.showinfo(
+                "Encryption Disabled",
+                "Encryption has been disabled. Your content is now stored in plain text."
+            )
+            
+        except Exception as e:
+            messagebox.showerror("Disable Encryption Error", f"Failed to disable encryption: {str(e)}")
+    
+    def _update_window_title(self):
+        """Update the window title to reflect encryption status."""
+        base_title = f"{APP_NAME} - #{self.file_manager.memento_id}"
+        if self.file_manager.is_encrypted():
+            self.root.title(f"{base_title} 🔒")
+        else:
+            self.root.title(base_title)
     
     def _on_closing(self):
         """Handle window close event."""
