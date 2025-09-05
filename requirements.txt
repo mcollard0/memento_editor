@@ -1,6 +1,11 @@
 # Memento Text Editor Requirements
-# This application uses only Python standard library modules.
-# No external dependencies are required for basic functionality.
+# Core application uses only Python standard library modules.
+# Optional encryption and MongoDB support requires additional dependencies.
+
+# Optional encryption and compression dependencies:
+cryptography>=3.4.0  # For ECC encryption
+Brotli>=1.0.9        # For text compression
+pymongo>=4.0.0       # For MongoDB storage
 
 # Optional development dependencies:
 # pytest>=6.0.0  # For running tests (uncomment if needed)
