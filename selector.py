@@ -81,6 +81,9 @@ class StartupSelector:
         self.new_button = ttk.Button(button_frame, text="Create New", command=self._on_new)
         self.new_button.pack(side=tk.LEFT, padx=5)
         
+        self.import_button = ttk.Button(button_frame, text="Import Text File", command=self._on_import)
+        self.import_button.pack(side=tk.LEFT, padx=5)
+        
         self.cancel_button = ttk.Button(button_frame, text="Cancel", command=self._on_cancel)
         self.cancel_button.pack(side=tk.RIGHT)
         
@@ -146,6 +149,43 @@ class StartupSelector:
         """Handle creating new memento."""
         self.result = None  # None indicates new memento
         self.root.destroy()
+    
+    def _on_import(self):
+        """Handle importing a text file as a new memento."""
+        try:
+            # Ask if they want to encrypt the imported file
+            from tkinter import messagebox, simpledialog
+            
+            encrypt = messagebox.askyesno(
+                "Import Options", 
+                "Would you like to encrypt the imported text file?\n\n"
+                "• Yes: File will be encrypted and stored in MongoDB (if available)\n"
+                "• No: File will be stored locally as plaintext"
+            )
+            
+            passphrase = None
+            if encrypt:
+                passphrase = simpledialog.askstring(
+                    "Encryption Passphrase", 
+                    "Enter passphrase for encryption:",
+                    show='*'
+                )
+                if not passphrase:
+                    messagebox.showinfo("Import Cancelled", "Import cancelled - no passphrase provided.")
+                    return
+            
+            # Import the file
+            manager = FileManager.import_text_file_with_dialog(passphrase)
+            
+            if manager:
+                # Successfully imported - open the new memento
+                self.result = manager.memento_id
+                self.root.destroy()
+            # If manager is None, user cancelled or import failed (already handled by the method)
+            
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Import Error", f"Failed to import text file: {str(e)}")
     
     def _on_cancel(self):
         """Handle cancel/close."""

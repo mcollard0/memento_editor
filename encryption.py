@@ -54,7 +54,8 @@ class EncryptionManager:
     
     def __init__(self, memento_root: Path):
         self.memento_root = Path(memento_root)
-        self.mongodb_uri = os.getenv('MONGODB_URI')
+        # Check both uppercase and lowercase environment variables
+        self.mongodb_uri = os.getenv('MONGODB_URI') or os.getenv('mongodb_uri')
         self.mongo_client = None
         self.mongo_db = None
         self.mongo_collection = None
@@ -330,6 +331,182 @@ class EncryptionManager:
         """Get current timestamp."""
         import time
         return time.time()
+    
+    def migrate_local_mementos_to_mongodb(self, passphrase: str = None) -> int:
+        """Migrate local unencrypted mementos to MongoDB with encryption.
+        
+        Args:
+            passphrase: Passphrase for encryption. If None, prompts user.
+            
+        Returns:
+            Number of mementos migrated
+        """
+        if not self.has_mongodb_support:
+            logger.info("MongoDB not available - skipping migration")
+            return 0
+        
+        if not self.has_encryption_support:
+            logger.warning("Encryption not available - cannot migrate to MongoDB")
+            return 0
+        
+        # Import here to avoid circular imports
+        from storage import FileManager, MEMENTO_ROOT
+        from constants import make_dirs_if_missing
+        
+        if not MEMENTO_ROOT.exists():
+            logger.info("No local memento directory found")
+            return 0
+        
+        migrated_count = 0
+        logger.info("Starting migration of local mementos to MongoDB")
+        
+        # Find all local mementos
+        for item in MEMENTO_ROOT.iterdir():
+            if item.is_dir() and item.name.isdigit():
+                memento_id = int(item.name)
+                
+                try:
+                    # Check if already exists in MongoDB
+                    existing_content = self.mongo_collection.find_one({
+                        'memento_id': memento_id,
+                        'type': 'content'
+                    })
+                    
+                    if existing_content:
+                        logger.info(f"Memento {memento_id} already exists in MongoDB - skipping")
+                        continue
+                    
+                    # Load the local memento
+                    file_manager = FileManager(memento_id)
+                    
+                    # Skip if already encrypted (shouldn't happen but safety check)
+                    if file_manager.is_encrypted():
+                        logger.info(f"Memento {memento_id} is already encrypted - skipping")
+                        continue
+                    
+                    # Get the current content
+                    content = file_manager.load_current_snapshot()
+                    
+                    if not content or content.strip() == "":
+                        logger.info(f"Memento {memento_id} is empty - skipping")
+                        continue
+                    
+                    # Get passphrase if not provided
+                    if passphrase is None:
+                        passphrase = self._prompt_for_passphrase(memento_id)
+                        if not passphrase:
+                            logger.info(f"No passphrase provided for memento {memento_id} - skipping")
+                            continue
+                    
+                    # Enable encryption on the memento (this will trigger MongoDB storage)
+                    file_manager.enable_encryption(passphrase)
+                    
+                    # Force re-save to ensure MongoDB storage  
+                    current_content = file_manager.load_current_snapshot()
+                    file_manager.write_snapshot(current_content)
+                    
+                    # Verify it was saved to MongoDB (check with small delay)
+                    import time
+                    time.sleep(0.1)  # Small delay for async operations
+                    
+                    mongodb_content = self.mongo_collection.find_one({
+                        'memento_id': memento_id,
+                        'type': 'content'
+                    })
+                    
+                    if mongodb_content:
+                        logger.info(f"✅ Successfully migrated memento {memento_id} to MongoDB")
+                        migrated_count += 1
+                        
+                        # Create a backup of original local files before cleanup
+                        self._backup_local_memento(memento_id, item)
+                    else:
+                        # Check if the issue is with database name
+                        logger.warning(f"Could not verify memento {memento_id} in MongoDB collection '{self.mongo_collection.name}'")
+                        
+                        # Try to save directly using the encryption manager
+                        try:
+                            # Use the EncryptionManager to save directly to MongoDB
+                            aes_key = file_manager._aes_key
+                            if aes_key:
+                                self.save_encrypted_content(memento_id, current_content, aes_key)
+                                
+                                # Verify again
+                                mongodb_content = self.mongo_collection.find_one({
+                                    'memento_id': memento_id,
+                                    'type': 'content'
+                                })
+                                
+                                if mongodb_content:
+                                    logger.info(f"✅ Successfully migrated memento {memento_id} to MongoDB (direct save)")
+                                    migrated_count += 1
+                                    self._backup_local_memento(memento_id, item)
+                                else:
+                                    logger.error(f"Failed to verify memento {memento_id} even after direct save")
+                            else:
+                                logger.error(f"No AES key available for memento {memento_id}")
+                        except Exception as direct_save_error:
+                            logger.error(f"Direct save failed for memento {memento_id}: {direct_save_error}")
+                        
+                except Exception as e:
+                    logger.error(f"Error migrating memento {memento_id}: {e}")
+                    continue
+        
+        logger.info(f"Migration completed: {migrated_count} mementos migrated to MongoDB")
+        return migrated_count
+    
+    def _prompt_for_passphrase(self, memento_id: int) -> str:
+        """Prompt user for encryption passphrase."""
+        try:
+            import tkinter as tk
+            from tkinter import simpledialog, messagebox
+            
+            root = tk.Tk()
+            root.withdraw()  # Hide the main window
+            
+            # Show info about the memento first
+            from storage import FileManager
+            fm = FileManager(memento_id)
+            preview = fm.get_first_line()
+            
+            messagebox.showinfo(
+                "Memento Migration",
+                f"Found local memento {memento_id}:\n\n"
+                f"Preview: {preview[:100]}{'...' if len(preview) > 100 else ''}\n\n"
+                f"This memento will be encrypted and migrated to MongoDB."
+            )
+            
+            passphrase = simpledialog.askstring(
+                f"Encrypt Memento {memento_id}",
+                "Enter passphrase for encryption:",
+                show='*'
+            )
+            
+            root.destroy()
+            return passphrase or ""
+            
+        except ImportError:
+            # Fallback for environments without tkinter
+            import getpass
+            print(f"\nMigrating memento {memento_id} to MongoDB...")
+            return getpass.getpass(f"Enter passphrase for memento {memento_id}: ")
+    
+    def _backup_local_memento(self, memento_id: int, memento_dir):
+        """Create backup of local memento before cleanup."""
+        try:
+            import shutil
+            backup_dir = self.memento_root / 'backups'
+            backup_dir.mkdir(exist_ok=True)
+            
+            timestamp = self._get_timestamp()
+            backup_name = f"memento_{memento_id}_{int(timestamp)}_pre_migration"
+            backup_path = backup_dir / backup_name
+            
+            shutil.copytree(memento_dir, backup_path)
+            logger.info(f"Created backup of memento {memento_id} at {backup_path}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to create backup for memento {memento_id}: {e}")
 
 
 def get_missing_dependencies() -> list:

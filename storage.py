@@ -356,11 +356,62 @@ class FileManager:
         return FileManager(memento_id)
     
     @staticmethod
-    def list_mementos() -> List[MementoInfo]:
-        """List all existing mementos with metadata."""
+    def list_mementos(auto_migrate: bool = True) -> List[MementoInfo]:
+        """List all existing mementos with metadata.
+        
+        Args:
+            auto_migrate: If True, automatically migrates local mementos to MongoDB when available
+        """
         make_dirs_if_missing(MEMENTO_ROOT)
         mementos = []
         
+        # Auto-migrate local mementos to MongoDB if available
+        if auto_migrate and HAS_ENCRYPTION:
+            try:
+                from encryption import EncryptionManager
+                encryption_manager = EncryptionManager(MEMENTO_ROOT)
+                
+                if encryption_manager.has_mongodb_support:
+                    # Check if there are any unmigrated local mementos
+                    has_local_unmigrated = False
+                    
+                    for item in MEMENTO_ROOT.iterdir():
+                        if item.is_dir() and item.name.isdigit():
+                            memento_id = int(item.name)
+                            
+                            # Check if exists in MongoDB
+                            existing = encryption_manager.mongo_collection.find_one({
+                                'memento_id': memento_id,
+                                'type': 'content'
+                            })
+                            
+                            if not existing:
+                                # Check if it's unencrypted (has .txt files)
+                                txt_files = list(item.glob('*.txt'))
+                                if txt_files:
+                                    has_local_unmigrated = True
+                                    break
+                    
+                    if has_local_unmigrated:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info("Found local mementos that can be migrated to MongoDB")
+                        
+                        # Attempt silent migration with a default passphrase prompt
+                        try:
+                            migrated_count = encryption_manager.migrate_local_mementos_to_mongodb()
+                            if migrated_count > 0:
+                                logger.info(f"Successfully migrated {migrated_count} mementos to MongoDB")
+                        except Exception as e:
+                            logger.warning(f"Auto-migration failed (user may have cancelled): {e}")
+                            
+            except Exception as e:
+                # Don't let migration errors break the listing
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error during auto-migration check: {e}")
+        
+        # List local mementos
         for item in MEMENTO_ROOT.iterdir():
             if item.is_dir() and item.name.isdigit():
                 memento_id = int(item.name)
@@ -376,6 +427,173 @@ class FileManager:
                         last_modified=last_modified
                     ))
         
+        # Add MongoDB-only mementos if available
+        if HAS_ENCRYPTION:
+            try:
+                from encryption import EncryptionManager
+                encryption_manager = EncryptionManager(MEMENTO_ROOT)
+                
+                if encryption_manager.has_mongodb_support:
+                    # Get all memento IDs from MongoDB
+                    mongodb_ids = set()
+                    local_ids = set(int(item.name) for item in MEMENTO_ROOT.iterdir() 
+                                  if item.is_dir() and item.name.isdigit())
+                    
+                    cursor = encryption_manager.mongo_collection.find(
+                        {'type': 'content'}, 
+                        {'memento_id': 1, 'timestamp': 1}
+                    )
+                    
+                    for doc in cursor:
+                        memento_id = doc['memento_id']
+                        mongodb_ids.add(memento_id)
+                        
+                        # If this memento exists only in MongoDB, create MementoInfo for it
+                        if memento_id not in local_ids:
+                            # Create a minimal manager to get first line
+                            temp_manager = FileManager(memento_id)
+                            first_line = temp_manager.get_first_line()  # Will show [Encrypted memento] without key
+                            
+                            # Use MongoDB timestamp
+                            timestamp = doc.get('timestamp', time.time())
+                            last_modified = datetime.fromtimestamp(timestamp)
+                            
+                            mementos.append(MementoInfo(
+                                memento_id=memento_id,
+                                first_line=first_line,
+                                last_modified=last_modified
+                            ))
+                            
+            except Exception as e:
+                # Don't let MongoDB errors break the listing
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error loading MongoDB mementos: {e}")
+        
         # Sort by last modified time, most recent first
         mementos.sort(key=lambda m: m.last_modified, reverse=True)
         return mementos
+    
+    @staticmethod
+    def import_text_file(file_path: str, passphrase: str = None) -> Optional['FileManager']:
+        """Import a text file as a new memento.
+        
+        Args:
+            file_path: Path to the text file to import
+            passphrase: Optional passphrase for encryption
+            
+        Returns:
+            FileManager for the newly created memento, or None if import failed
+        """
+        try:
+            import pathlib
+            file_path = pathlib.Path(file_path)
+            
+            if not file_path.exists():
+                raise FileNotFoundError(f"File not found: {file_path}")
+            
+            if not file_path.is_file():
+                raise ValueError(f"Path is not a file: {file_path}")
+            
+            # Read the file content
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                # Try with different encodings
+                for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                    try:
+                        with open(file_path, 'r', encoding=encoding) as f:
+                            content = f.read()
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    raise ValueError(f"Cannot decode file {file_path} - unsupported encoding")
+            
+            if not content.strip():
+                raise ValueError(f"File {file_path} is empty")
+            
+            # Create new memento
+            manager = FileManager.create_new_memento()
+            
+            # Add import metadata to the beginning
+            import_info = f"# Imported from: {file_path.name}\n# Import date: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            full_content = import_info + content
+            
+            # Enable encryption if passphrase provided
+            if passphrase:
+                manager.enable_encryption(passphrase)
+            
+            # Write the content
+            manager.write_snapshot(full_content)
+            
+            return manager
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to import text file {file_path}: {e}")
+            return None
+    
+    @staticmethod
+    def import_text_file_with_dialog(passphrase: str = None) -> Optional['FileManager']:
+        """Import a text file using a file dialog.
+        
+        Args:
+            passphrase: Optional passphrase for encryption
+            
+        Returns:
+            FileManager for the newly created memento, or None if cancelled/failed
+        """
+        try:
+            import tkinter as tk
+            from tkinter import filedialog, messagebox
+            
+            root = tk.Tk()
+            root.withdraw()  # Hide the main window
+            
+            # Show file dialog
+            file_path = filedialog.askopenfilename(
+                title="Import Text File",
+                filetypes=[
+                    ("Text files", "*.txt *.md *.py *.js *.html *.css *.json *.xml *.csv"),
+                    ("Markdown files", "*.md *.markdown"),
+                    ("Code files", "*.py *.js *.html *.css *.java *.cpp *.c *.h"),
+                    ("All files", "*.*")
+                ]
+            )
+            
+            root.destroy()
+            
+            if not file_path:
+                return None  # User cancelled
+            
+            # Import the file
+            manager = FileManager.import_text_file(file_path, passphrase)
+            
+            if manager:
+                messagebox.showinfo(
+                    "Import Successful",
+                    f"Successfully imported '{pathlib.Path(file_path).name}' as memento {manager.memento_id}"
+                )
+            else:
+                messagebox.showerror(
+                    "Import Failed",
+                    f"Failed to import '{pathlib.Path(file_path).name}'"
+                )
+            
+            return manager
+            
+        except ImportError:
+            # Fallback for environments without tkinter
+            file_path = input("Enter path to text file to import: ").strip()
+            if file_path:
+                return FileManager.import_text_file(file_path, passphrase)
+            return None
+        
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in import dialog: {e}")
+            return None
