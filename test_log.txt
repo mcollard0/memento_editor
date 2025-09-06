@@ -1,0 +1,22 @@
+2025-09-06 08:33:54,146 - INFO - Starting Memento v1.0.0
+2025-09-06 08:33:54,146 - INFO - Memento directory: /home/michael/.Memento
+2025-09-06 08:33:54,733 - INFO - MongoDB connection established successfully
+2025-09-06 08:33:55,245 - INFO - MongoDB connection established successfully
+2025-09-06 08:33:55,681 - INFO - MongoDB connection established successfully
+2025-09-06 08:33:56,117 - INFO - MongoDB connection established successfully
+2025-09-06 08:34:00,242 - INFO - Opening memento 1
+2025-09-06 08:34:00,720 - INFO - MongoDB connection established successfully
+2025-09-06 08:34:00,721 - INFO - Loaded memento 1
+2025-09-06 08:34:01,178 - INFO - MongoDB connection established successfully
+2025-09-06 08:34:01,193 - INFO - Loading content for memento 1
+2025-09-06 08:34:01,193 - INFO - Memento is encrypted
+2025-09-06 08:34:01,193 - INFO - No passphrase available - showing placeholder
+Auto-save threshold increased: 2 → 4 chars
+2025-09-06 08:34:05,151 - INFO - Attempting to verify passphrase for memento 1
+2025-09-06 08:34:05,165 - WARNING - Passphrase verification failed
+2025-09-06 08:34:11,047 - INFO - Attempting to verify passphrase for memento 1
+2025-09-06 08:34:11,060 - WARNING - Passphrase verification failed
+Auto-save threshold increased: 4 → 6 chars
+Auto-save threshold increased: 6 → 8 chars
+Auto-save threshold increased: 8 → 10 chars
+2025-09-06 08:34:30,104 - INFO - Application shutting down
