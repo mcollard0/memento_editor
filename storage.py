@@ -143,14 +143,45 @@ class FileManager:
         if not self._is_encrypted or not self.encryption_manager:
             return True
         
+        # Save current state to restore if verification fails
+        old_aes_key = self._aes_key
+        old_passphrase = self._current_passphrase
+        
         try:
             # Try to load and decrypt current snapshot
             self._prepare_aes_key(passphrase)
-            content = self.load_current_snapshot()
+            
+            # Try to decrypt a snapshot to verify the key works
+            test_index = self.current_index
+            snapshot_path = self._get_snapshot_path(test_index)
+            
+            if not snapshot_path.exists():
+                # Try other indices if current doesn't exist
+                for i in range(self.max_buffers):
+                    test_path = self._get_snapshot_path(i)
+                    if test_path.exists():
+                        test_index = i
+                        snapshot_path = test_path
+                        break
+                
+                if not snapshot_path.exists():
+                    # No snapshots exist - passphrase can't be verified but assume it's correct
+                    return True
+            
+            # Try to decrypt the test snapshot
+            with open(snapshot_path, 'rb') as f:
+                encrypted_data = f.read()
+            
+            # This will raise an exception if the key is wrong
+            self.encryption_manager.decrypt_data(encrypted_data, self._aes_key)
+            
+            # Verification successful
             return True
-        except Exception:
-            self._aes_key = None
-            self._current_passphrase = None
+            
+        except Exception as e:
+            # Verification failed - restore old state
+            self._aes_key = old_aes_key
+            self._current_passphrase = old_passphrase
             return False
     
     def enable_encryption(self, passphrase: str):
@@ -397,13 +428,10 @@ class FileManager:
                         logger = logging.getLogger(__name__)
                         logger.info("Found local mementos that can be migrated to MongoDB")
                         
-                        # Attempt silent migration with a default passphrase prompt
-                        try:
-                            migrated_count = encryption_manager.migrate_local_mementos_to_mongodb()
-                            if migrated_count > 0:
-                                logger.info(f"Successfully migrated {migrated_count} mementos to MongoDB")
-                        except Exception as e:
-                            logger.warning(f"Auto-migration failed (user may have cancelled): {e}")
+                        # Skip auto-migration prompts to prevent GUI hanging
+                        # User can manually trigger migration from the menu if needed
+                        logger.info("Local mementos found that could be migrated to MongoDB")
+                        logger.info("Auto-migration skipped to prevent GUI hanging - use menu option to migrate manually")
                             
             except Exception as e:
                 # Don't let migration errors break the listing

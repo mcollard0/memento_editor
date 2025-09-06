@@ -21,8 +21,9 @@ class PassphraseDialog:
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
         self.dialog.title(title)
-        self.dialog.geometry("500x400" if show_size_limit else "450x300")
-        self.dialog.resizable(False, False)
+        self.dialog.geometry("650x700" if show_size_limit else "600x600")
+        self.dialog.resizable(True, True)
+        self.dialog.minsize(550, 500)
         
         # Make dialog modal
         self.dialog.transient(parent)
@@ -61,12 +62,12 @@ class PassphraseDialog:
     
     def _create_widgets(self, message: str, show_size_limit: bool, max_size_mb: int):
         """Create dialog widgets."""
-        main_frame = ttk.Frame(self.dialog, padding="20")
+        main_frame = ttk.Frame(self.dialog, padding="40")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Icon and message
         icon_frame = ttk.Frame(main_frame)
-        icon_frame.pack(fill=tk.X, pady=(0, 20))
+        icon_frame.pack(fill=tk.X, pady=(0, 30))
         
         # Use a lock symbol 
         icon_label = ttk.Label(icon_frame, text="🔒", font=('Arial', 24))
@@ -78,7 +79,7 @@ class PassphraseDialog:
         # Size limit warning if needed
         if show_size_limit:
             size_frame = ttk.Frame(main_frame)
-            size_frame.pack(fill=tk.X, pady=(0, 15))
+            size_frame.pack(fill=tk.X, pady=(0, 25))
             
             size_label = ttk.Label(
                 size_frame, 
@@ -92,18 +93,18 @@ class PassphraseDialog:
         
         # Password fields
         fields_frame = ttk.Frame(main_frame)
-        fields_frame.pack(fill=tk.X, pady=(0, 20))
+        fields_frame.pack(fill=tk.X, pady=(0, 30))
         
         # Main password
-        ttk.Label(fields_frame, text="Passphrase:").pack(anchor=tk.W)
-        self.password_entry = ttk.Entry(fields_frame, show="*", width=50)
-        self.password_entry.pack(fill=tk.X, pady=(5, 15))
+        ttk.Label(fields_frame, text="Passphrase:", font=('Arial', 12, 'bold')).pack(anchor=tk.W, pady=(10, 8))
+        self.password_entry = ttk.Entry(fields_frame, show="*", width=60, font=('Arial', 14))
+        self.password_entry.pack(fill=tk.X, pady=(5, 25), ipady=12)
         
         # Confirmation password (only for creation)
         if self.is_creation:
-            ttk.Label(fields_frame, text="Confirm Passphrase:").pack(anchor=tk.W)
-            self.confirm_entry = ttk.Entry(fields_frame, show="*", width=50)
-            self.confirm_entry.pack(fill=tk.X, pady=(5, 15))
+            ttk.Label(fields_frame, text="Confirm Passphrase:", font=('Arial', 12, 'bold')).pack(anchor=tk.W, pady=(10, 8))
+            self.confirm_entry = ttk.Entry(fields_frame, show="*", width=60, font=('Arial', 14))
+            self.confirm_entry.pack(fill=tk.X, pady=(5, 25), ipady=12)
             
             # Strength indicator
             self.strength_label = ttk.Label(fields_frame, text="", foreground="gray")
@@ -120,11 +121,11 @@ class PassphraseDialog:
             variable=self.show_password,
             command=self._toggle_password_visibility
         )
-        show_check.pack(anchor=tk.W, pady=(0, 15))
+        show_check.pack(anchor=tk.W, pady=(0, 25))
         
         # Help text
         help_frame = ttk.Frame(main_frame)
-        help_frame.pack(fill=tk.X, pady=(0, 20))
+        help_frame.pack(fill=tk.X, pady=(0, 30))
         
         help_text = (
             "💡 Tips for a strong passphrase:\\n"
@@ -145,10 +146,13 @@ class PassphraseDialog:
         
         # Buttons
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X)
+        button_frame.pack(fill=tk.X, pady=(40, 20))
         
-        ttk.Button(button_frame, text="Cancel", command=self._on_cancel).pack(side=tk.RIGHT, padx=(10, 0))
-        ttk.Button(button_frame, text="OK", command=self._on_ok).pack(side=tk.RIGHT)
+        cancel_btn = ttk.Button(button_frame, text="Cancel", command=self._on_cancel, width=15)
+        cancel_btn.pack(side=tk.RIGHT, padx=(20, 0), pady=15, ipadx=25, ipady=8)
+        
+        ok_btn = ttk.Button(button_frame, text="Create Passphrase" if self.is_creation else "Unlock", command=self._on_ok, width=20)
+        ok_btn.pack(side=tk.RIGHT, pady=15, ipadx=25, ipady=8)
     
     def _toggle_password_visibility(self):
         """Toggle password visibility."""

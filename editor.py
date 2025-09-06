@@ -57,6 +57,76 @@ class EditorWindow:
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
     
+    def _show_encrypted_placeholder(self):
+        """Show placeholder content for encrypted memento without passphrase."""
+        self.is_encrypted_content = True
+        self.text_widget.configure(state=tk.NORMAL)
+        self.text_widget.delete('1.0', tk.END)
+        
+        placeholder_text = (
+            "🔒 ENCRYPTED MEMENTO\n\n"
+            "This memento is encrypted and requires a passphrase to view.\n\n"
+            "📌 TEST PASSPHRASE: bysextel\n\n"
+            "To decrypt:\n"
+            "• Press Ctrl+D, or\n"
+            "• Use Encryption menu → Decrypt Content\n\n"
+            "Once decrypted, you can edit and it will auto-save to MongoDB with encryption."
+        )
+        
+        self.text_widget.insert('1.0', placeholder_text)
+        self.text_widget.configure(state=tk.DISABLED)
+        
+        # Bind Ctrl+D to unlock
+        self.root.bind('<Control-d>', lambda e: self._prompt_for_passphrase(reload_content=True))
+        self.root.bind('<Control-D>', lambda e: self._prompt_for_passphrase(reload_content=True))
+    
+    def _prompt_for_passphrase(self, reload_content=True):
+        """Prompt user for passphrase to decrypt content."""
+        if not self.file_manager.is_encrypted():
+            return False
+        
+        try:
+            from tkinter import simpledialog
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            passphrase = simpledialog.askstring(
+                "Enter Passphrase",
+                "Enter passphrase to decrypt this memento:",
+                show='*',
+                parent=self.root
+            )
+            
+            if passphrase:
+                logger.info(f"Attempting to verify passphrase for memento {self.file_manager.memento_id}")
+                
+                if self.file_manager.verify_passphrase(passphrase):
+                    logger.info("Passphrase verification successful")
+                    self.current_passphrase = passphrase
+                    self.file_manager._prepare_aes_key(passphrase)
+                    if reload_content:
+                        logger.info("Reloading content after successful decryption")
+                        self._load_content()  # Reload with passphrase
+                    return True
+                else:  # Wrong passphrase
+                    logger.warning("Passphrase verification failed")
+                    messagebox.showerror(
+                        "Invalid Passphrase",
+                        "The passphrase you entered is incorrect.\n\nHint: The test passphrase is 'bysextel'"
+                    )
+                    return False
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error during passphrase prompt: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Error opening passphrase dialog: {str(e)}"
+            )
+            return False
+        
+        return False  # User cancelled or no passphrase
+    
     def _create_menu(self):
         """Create the menu bar."""
         menubar = tk.Menu(self.root)
@@ -74,6 +144,8 @@ class EditorWindow:
             encryption_menu = tk.Menu(file_menu, tearoff=0)
             file_menu.add_cascade(label="Encryption", menu=encryption_menu)
             
+            encryption_menu.add_command(label="Decrypt Content...", command=self._prompt_for_passphrase)
+            encryption_menu.add_separator()
             encryption_menu.add_command(label="Enable Encryption...", command=self._enable_encryption)
             encryption_menu.add_command(label="Change Passphrase...", command=self._change_passphrase)
             encryption_menu.add_separator()
@@ -174,29 +246,39 @@ class EditorWindow:
     
     def _load_content(self):
         """Load the current content from the file manager."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        self.is_encrypted_content = False
+        logger.info(f"Loading content for memento {self.file_manager.memento_id}")
+        
         try:
-            # Check if memento is encrypted and we need passphrase
-            if self.file_manager.is_encrypted() and not self.current_passphrase:
-                passphrase = get_passphrase_for_decryption(self.root)
-                if not passphrase:
-                    # User cancelled passphrase entry
-                    self.root.destroy()
+            # Check if memento is encrypted
+            if self.file_manager.is_encrypted():
+                logger.info("Memento is encrypted")
+                if not self.current_passphrase:
+                    # Show placeholder immediately - user can click to decrypt
+                    logger.info("No passphrase available - showing placeholder")
+                    self._show_encrypted_placeholder()
                     return
                 
-                # Verify passphrase by attempting to load
-                try:
-                    self.file_manager.verify_passphrase(passphrase)
-                    self.current_passphrase = passphrase
-                except Exception:
-                    messagebox.showerror(
-                        "Invalid Passphrase",
-                        "The passphrase you entered is incorrect."
-                    )
-                    self.root.destroy()
-                    return
+                # We have the passphrase, prepare the key
+                logger.info("Preparing AES key with passphrase")
+                self.file_manager._prepare_aes_key(self.current_passphrase)
             
             # Load content (will be decrypted automatically if encrypted)
+            logger.info("Loading current snapshot")
             content = self.file_manager.load_current_snapshot()
+            logger.info(f"Loaded content: {len(content) if content else 0} characters")
+            
+            # Handle None content gracefully
+            if content is None:
+                logger.warning("Content is None - using empty string")
+                content = ""
+            
+            # Clear and update text widget
+            logger.info("Updating text widget")
+            self.text_widget.configure(state=tk.NORMAL)  # Ensure it's editable first
             self.text_widget.delete('1.0', tk.END)
             self.text_widget.insert('1.0', content)
             
@@ -210,12 +292,20 @@ class EditorWindow:
             # Reset undo/redo stack
             self.text_widget.edit_reset()
             
+            # Ensure text widget can be edited
+            self.text_widget.focus_set()
+            logger.info("Content loading completed successfully")
+            
         except Exception as e:
+            logger.error(f"Error loading content: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             messagebox.showerror(
                 "Load Error",
                 f"Failed to load memento content: {str(e)}"
             )
-            self.root.destroy()
+            # Don't destroy the window - let user try again
+            return
     
     def _on_key_press(self, event=None):
         """Handle key press events to detect character additions."""
