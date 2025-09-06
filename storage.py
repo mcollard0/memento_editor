@@ -151,29 +151,36 @@ class FileManager:
             # Try to load and decrypt current snapshot
             self._prepare_aes_key(passphrase)
             
-            # Try to decrypt a snapshot to verify the key works
-            test_index = self.current_index
-            snapshot_path = self._get_snapshot_path(test_index)
+            # Try to decrypt available snapshots to verify the key works
+            # Start with current index, then try all others
+            test_indices = [self.current_index] + [i for i in range(self.max_buffers) if i != self.current_index]
             
-            if not snapshot_path.exists():
-                # Try other indices if current doesn't exist
-                for i in range(self.max_buffers):
-                    test_path = self._get_snapshot_path(i)
-                    if test_path.exists():
-                        test_index = i
-                        snapshot_path = test_path
-                        break
+            verification_success = False
+            for test_index in test_indices:
+                snapshot_path = self._get_snapshot_path(test_index)
                 
                 if not snapshot_path.exists():
-                    # No snapshots exist - passphrase can't be verified but assume it's correct
-                    return True
+                    continue
+                
+                try:
+                    # Try to decrypt this snapshot
+                    with open(snapshot_path, 'rb') as f:
+                        encrypted_data = f.read()
+                    
+                    # This will raise an exception if the key is wrong
+                    self.encryption_manager.decrypt_data(encrypted_data, self._aes_key)
+                    
+                    # Successfully decrypted at least one file
+                    verification_success = True
+                    break
+                    
+                except Exception:
+                    # This snapshot can't be decrypted, try the next one
+                    continue
             
-            # Try to decrypt the test snapshot
-            with open(snapshot_path, 'rb') as f:
-                encrypted_data = f.read()
-            
-            # This will raise an exception if the key is wrong
-            self.encryption_manager.decrypt_data(encrypted_data, self._aes_key)
+            if not verification_success:
+                # No snapshots exist or none could be decrypted
+                raise Exception("No valid snapshots found or passphrase incorrect")
             
             # Verification successful
             return True
@@ -322,7 +329,21 @@ class FileManager:
     
     def load_current_snapshot(self) -> str:
         """Load the current (most recent) snapshot."""
-        return self._load_snapshot_at_index(self.current_index) or ""
+        # Try to load current snapshot first
+        content = self._load_snapshot_at_index(self.current_index)
+        if content is not None:
+            return content
+        
+        # If current snapshot failed, try to find the most recent valid snapshot
+        # Search backwards from current index
+        for offset in range(1, self.max_buffers):
+            try_index = (self.current_index - offset) % self.max_buffers
+            content = self._load_snapshot_at_index(try_index)
+            if content is not None:
+                return content
+        
+        # No valid snapshot found
+        return ""
     
     def _load_snapshot_at_index(self, index: int) -> Optional[str]:
         """Load snapshot at specific index, handling encryption."""
