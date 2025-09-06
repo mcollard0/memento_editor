@@ -27,7 +27,7 @@ class CaptureDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Capture Text from External Application")
-        self.dialog.geometry("650x550")
+        self.dialog.geometry("750x650")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
@@ -94,19 +94,26 @@ Note: This works with most text fields, browsers, documents, terminals, etc."""
         instructions_text.insert('1.0', instructions)
         instructions_text.config(state=tk.DISABLED)
         
-        # Buttons
-        button_frame = tk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=(10, 0))
+        # Buttons - make them larger and more prominent
+        button_frame = tk.Frame(main_frame, bg='lightgray', relief=tk.RAISED, bd=2)
+        button_frame.pack(fill=tk.X, pady=(20, 0), padx=5)
         
-        tk.Button(button_frame, text="Capture Now", 
-                 command=self._capture_immediate, width=15).pack(side=tk.LEFT, padx=(0, 10))
+        # Add some padding inside the button frame
+        inner_button_frame = tk.Frame(button_frame)
+        inner_button_frame.pack(pady=15, padx=15)
+        
+        tk.Button(inner_button_frame, text="Capture Now", 
+                 command=self._capture_immediate, width=20, height=2, 
+                 font=('TkDefaultFont', 10, 'bold'), bg='lightgreen').pack(side=tk.LEFT, padx=10)
         
         if caps.get('auto_select', False):
-            tk.Button(button_frame, text="Capture in 3 seconds", 
-                     command=self._capture_delayed, width=15).pack(side=tk.LEFT, padx=(0, 10))
+            tk.Button(inner_button_frame, text="Capture in 3 seconds", 
+                     command=self._capture_delayed, width=20, height=2, 
+                     font=('TkDefaultFont', 10, 'bold'), bg='lightblue').pack(side=tk.LEFT, padx=10)
         
-        tk.Button(button_frame, text="Cancel", 
-                 command=self._cancel, width=15).pack(side=tk.RIGHT)
+        tk.Button(inner_button_frame, text="Cancel", 
+                 command=self._cancel, width=20, height=2, 
+                 font=('TkDefaultFont', 10, 'bold'), bg='lightcoral').pack(side=tk.RIGHT, padx=10)
     
     def _center_dialog(self):
         """Center the dialog on the parent window."""

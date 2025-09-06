@@ -1,0 +1,22 @@
+{
+    "openai_api_key": "",
+    "anthropic_api_key": "",
+    "xai_api_key": "",
+    "preferred_service": "local",
+    "tesseract_config": "--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?@#$%^&*()_+-=[]{}|;':\"<>?/~` ",
+    "image_preprocessing": {
+        "enhance_contrast": true,
+        "sharpen": true,
+        "denoise": true,
+        "upscale_factor": 2.0
+    },
+    "text_box_detection": {
+        "enabled": true,
+        "min_box_area": 100,
+        "max_box_area": 50000,
+        "aspect_ratio_range": [
+            0.1,
+            10.0
+        ]
+    }
+}

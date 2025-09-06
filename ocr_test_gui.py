@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""
+OCR Test GUI for comparing accuracy across different AI services
+"""
+
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox, filedialog
+import threading
+import time
+import json
+import os
+from enhanced_ocr import EnhancedOCR
+import subprocess
+import logging
+
+logging.basicConfig( level=logging.DEBUG )
+logger = logging.getLogger( __name__ )
+
+class OCRTestGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title( "Enhanced OCR Test & Accuracy Comparison" )
+        self.root.geometry( "1200x900" )
+        
+        self.ocr = EnhancedOCR()
+        self.last_results = {}
+        self.accuracy_scores = {}
+        
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Setup the user interface."""
+        # Main frame
+        main_frame = ttk.Frame( self.root, padding="10" )
+        main_frame.grid( row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S) )
+        
+        # Configuration section
+        config_frame = ttk.LabelFrame( main_frame, text="Configuration", padding="10" )
+        config_frame.grid( row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10) )
+        
+        # API Key inputs
+        ttk.Label( config_frame, text="OpenAI API Key:" ).grid( row=0, column=0, sticky=tk.W, padx=(0, 10) )
+        self.openai_key = tk.StringVar( value=self.ocr.config.get( "openai_api_key", "" ) )
+        ttk.Entry( config_frame, textvariable=self.openai_key, width=50, show="*" ).grid( row=0, column=1, sticky=(tk.W, tk.E) )
+        
+        ttk.Label( config_frame, text="Anthropic API Key:" ).grid( row=1, column=0, sticky=tk.W, padx=(0, 10) )
+        self.anthropic_key = tk.StringVar( value=self.ocr.config.get( "anthropic_api_key", "" ) )
+        ttk.Entry( config_frame, textvariable=self.anthropic_key, width=50, show="*" ).grid( row=1, column=1, sticky=(tk.W, tk.E) )
+        
+        ttk.Label( config_frame, text="XAI API Key:" ).grid( row=2, column=0, sticky=tk.W, padx=(0, 10) )
+        self.xai_key = tk.StringVar( value=self.ocr.config.get( "xai_api_key", "" ) )
+        ttk.Entry( config_frame, textvariable=self.xai_key, width=50, show="*" ).grid( row=2, column=1, sticky=(tk.W, tk.E) )
+        
+        # Save config button
+        ttk.Button( config_frame, text="Save Configuration", command=self.save_config ).grid( row=3, column=0, columnspan=2, pady=10 )
+        
+        # Window capture section
+        capture_frame = ttk.LabelFrame( main_frame, text="Window Capture", padding="10" )
+        capture_frame.grid( row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10) )
+        
+        ttk.Label( capture_frame, text="Window ID:" ).grid( row=0, column=0, sticky=tk.W, padx=(0, 10) )
+        self.window_id_var = tk.StringVar()
+        ttk.Entry( capture_frame, textvariable=self.window_id_var, width=20 ).grid( row=0, column=1, padx=(0, 10) )
+        
+        ttk.Button( capture_frame, text="Get Active Window", command=self.get_active_window ).grid( row=0, column=2, padx=(0, 10) )
+        ttk.Button( capture_frame, text="Select Window", command=self.select_window ).grid( row=0, column=3, padx=(0, 10) )
+        ttk.Button( capture_frame, text="Capture & Test All", command=self.capture_and_test ).grid( row=0, column=4 )
+        
+        # Progress bar
+        self.progress = ttk.Progressbar( capture_frame, mode='indeterminate' )
+        self.progress.grid( row=1, column=0, columnspan=5, sticky=(tk.W, tk.E), pady=10 )
+        
+        # Progress bar\n        self.progress = ttk.Progressbar( capture_frame, mode='indeterminate' )\n        self.progress.grid( row=1, column=0, columnspan=5, sticky=(tk.W, tk.E), pady=10 )\n        \n        # Results section\n        results_frame = ttk.LabelFrame( main_frame, text=\"OCR Results\", padding=\"10\" )\n        results_frame.grid( row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10) )\n        \n        # Create notebook for different OCR services\n        self.notebook = ttk.Notebook( results_frame )\n        self.notebook.grid( row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S) )\n        \n        # Create tabs for each service\n        self.service_tabs = {}\n        services = ['tesseract', 'openai', 'anthropic', 'xai', 'text_boxes']\n        \n        for service in services:\n            frame = ttk.Frame( self.notebook )\n            self.notebook.add( frame, text=service.title() )\n            \n            # Text area for results\n            text_area = scrolledtext.ScrolledText( frame, wrap=tk.WORD, height=15 )\n            text_area.grid( row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5 )\n            \n            # Accuracy rating section\n            rating_frame = ttk.Frame( frame )\n            rating_frame.grid( row=1, column=0, sticky=(tk.W, tk.E), padx=5, pady=5 )\n            \n            ttk.Label( rating_frame, text=\"Accuracy Rating:\" ).grid( row=0, column=0, padx=(0, 10) )\n            \n            rating_var = tk.IntVar( value=5 )\n            rating_scale = tk.Scale( rating_frame, from_=1, to=10, orient=tk.HORIZONTAL, \n                                   variable=rating_var, length=200 )\n            rating_scale.grid( row=0, column=1, padx=(0, 10) )\n            \n            ttk.Button( rating_frame, text=\"Save Rating\", \n                       command=lambda s=service, r=rating_var: self.save_rating( s, r.get() ) ).grid( row=0, column=2 )\n            \n            self.service_tabs[service] = {\n                'text_area': text_area,\n                'rating_var': rating_var,\n                'rating_scale': rating_scale\n            }\n            \n            frame.grid_rowconfigure( 0, weight=1 )\n            frame.grid_columnconfigure( 0, weight=1 )\n        \n        # Accuracy summary section\n        summary_frame = ttk.LabelFrame( main_frame, text=\"Accuracy Summary\", padding=\"10\" )\n        summary_frame.grid( row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10) )\n        \n        self.summary_text = scrolledtext.ScrolledText( summary_frame, wrap=tk.WORD, height=5 )\n        self.summary_text.grid( row=0, column=0, sticky=(tk.W, tk.E), padx=5, pady=5 )\n        \n        ttk.Button( summary_frame, text=\"Load Test Results\", command=self.load_test_results ).grid( row=1, column=0, pady=5 )\n        ttk.Button( summary_frame, text=\"Save Test Results\", command=self.save_test_results ).grid( row=1, column=1, pady=5, padx=(10, 0) )\n        \n        # Configure grid weights\n        main_frame.grid_rowconfigure( 2, weight=1 )\n        main_frame.grid_columnconfigure( 0, weight=1 )\n        results_frame.grid_rowconfigure( 0, weight=1 )\n        results_frame.grid_columnconfigure( 0, weight=1 )\n        summary_frame.grid_columnconfigure( 0, weight=1 )\n        \n        self.load_accuracy_scores()\n        self.update_summary()\n        \n    def save_config(self):\n        \"\"\"Save API configuration.\"\"\"\n        self.ocr.config[\"openai_api_key\"] = self.openai_key.get()\n        self.ocr.config[\"anthropic_api_key\"] = self.anthropic_key.get()\n        self.ocr.config[\"xai_api_key\"] = self.xai_key.get()\n        \n        self.ocr._save_config( self.ocr.config )\n        self.ocr.available_services = self.ocr._check_available_services()\n        \n        messagebox.showinfo( \"Configuration\", \"Configuration saved successfully!\" )\n        \n    def get_active_window(self):\n        \"\"\"Get the currently active window ID.\"\"\"\n        try:\n            result = subprocess.run( ['xdotool', 'getactivewindow'], \n                                   capture_output=True, text=True, timeout=5 )\n            if result.returncode == 0:\n                window_id = result.stdout.strip()\n                self.window_id_var.set( window_id )\n                logger.info( f\"Active window ID: {window_id}\" )\n            else:\n                messagebox.showerror( \"Error\", \"Failed to get active window ID\" )\n        except Exception as e:\n            messagebox.showerror( \"Error\", f\"Failed to get active window: {e}\" )\n    \n    def select_window(self):\n        \"\"\"Allow user to select a window by clicking.\"\"\"\n        try:\n            messagebox.showinfo( \"Select Window\", \"Click on the window you want to capture text from.\" )\n            result = subprocess.run( ['xdotool', 'selectwindow'], \n                                   capture_output=True, text=True, timeout=30 )\n            if result.returncode == 0:\n                window_id = result.stdout.strip()\n                self.window_id_var.set( window_id )\n                logger.info( f\"Selected window ID: {window_id}\" )\n            else:\n                messagebox.showerror( \"Error\", \"Failed to select window\" )\n        except Exception as e:\n            messagebox.showerror( \"Error\", f\"Failed to select window: {e}\" )\n    \n    def capture_and_test(self):\n        \"\"\"Capture window and test all OCR services.\"\"\"\n        window_id = self.window_id_var.get().strip()\n        if not window_id:\n            messagebox.showerror( \"Error\", \"Please provide a window ID\" )\n            return\n        \n        # Start progress bar\n        self.progress.start()\n        \n        # Run capture in separate thread\n        thread = threading.Thread( target=self._run_capture_test, args=(window_id,) )\n        thread.daemon = True\n        thread.start()\n    \n    def _run_capture_test(self, window_id):\n        \"\"\"Run the capture test in a separate thread.\"\"\"\n        try:\n            logger.info( f\"Starting OCR test for window {window_id}\" )\n            results = self.ocr.capture_and_ocr_window( window_id )\n            self.last_results = results\n            \n            # Update UI in main thread\n            self.root.after( 0, self._update_results, results )\n            \n        except Exception as e:\n            logger.error( f\"Capture test failed: {e}\" )\n            self.root.after( 0, lambda: messagebox.showerror( \"Error\", f\"Capture test failed: {e}\" ) )\n        finally:\n            self.root.after( 0, self.progress.stop )\n    \n    def _update_results(self, results):\n        \"\"\"Update the results display.\"\"\"\n        for service, text in results.items():\n            if service in self.service_tabs:\n                text_area = self.service_tabs[service]['text_area']\n                text_area.delete( 1.0, tk.END )\n                text_area.insert( 1.0, text )\n        \n        logger.info( f\"Updated results for {len(results)} services\" )\n    \n    def save_rating(self, service, rating):\n        \"\"\"Save accuracy rating for a service.\"\"\"\n        if service not in self.last_results:\n            messagebox.showwarning( \"Warning\", f\"No results available for {service}\" )\n            return\n        \n        timestamp = int( time.time() )\n        \n        if service not in self.accuracy_scores:\n            self.accuracy_scores[service] = []\n        \n        self.accuracy_scores[service].append( {\n            'rating': rating,\n            'timestamp': timestamp,\n            'text_length': len( self.last_results[service] ),\n            'text_preview': self.last_results[service][:100]\n        } )\n        \n        self.save_accuracy_scores()\n        self.update_summary()\n        \n        messagebox.showinfo( \"Rating Saved\", f\"Rating {rating}/10 saved for {service}\" )\n    \n    def load_accuracy_scores(self):\n        \"\"\"Load accuracy scores from file.\"\"\"\n        try:\n            if os.path.exists( 'accuracy_scores.json' ):\n                with open( 'accuracy_scores.json', 'r' ) as f:\n                    self.accuracy_scores = json.load( f )\n        except Exception as e:\n            logger.error( f\"Failed to load accuracy scores: {e}\" )\n            self.accuracy_scores = {}\n    \n    def save_accuracy_scores(self):\n        \"\"\"Save accuracy scores to file.\"\"\"\n        try:\n            with open( 'accuracy_scores.json', 'w' ) as f:\n                json.dump( self.accuracy_scores, f, indent=2 )\n        except Exception as e:\n            logger.error( f\"Failed to save accuracy scores: {e}\" )\n    \n    def update_summary(self):\n        \"\"\"Update the accuracy summary display.\"\"\"\n        summary_lines = [\"=== Accuracy Summary ===\", \"\"]\n        \n        for service, scores in self.accuracy_scores.items():\n            if scores:\n                ratings = [score['rating'] for score in scores]\n                avg_rating = sum( ratings ) / len( ratings )\n                summary_lines.append( f\"{service.title()}: {avg_rating:.1f}/10 (from {len(ratings)} tests)\" )\n        \n        if len( summary_lines ) == 2:\n            summary_lines.append( \"No accuracy ratings yet. Test some OCR services and rate their accuracy.\" )\n        \n        self.summary_text.delete( 1.0, tk.END )\n        self.summary_text.insert( 1.0, \"\\n\".join( summary_lines ) )\n    \n    def save_test_results(self):\n        \"\"\"Save current test results to a file.\"\"\"\n        if not self.last_results:\n            messagebox.showwarning( \"Warning\", \"No test results to save\" )\n            return\n        \n        filename = filedialog.asksaveasfilename( \n            defaultextension=\".json\",\n            filetypes=[(\"JSON files\", \"*.json\"), (\"All files\", \"*.*\")]\n        )\n        \n        if filename:\n            try:\n                with open( filename, 'w' ) as f:\n                    json.dump( self.last_results, f, indent=2 )\n                messagebox.showinfo( \"Saved\", f\"Test results saved to {filename}\" )\n            except Exception as e:\n                messagebox.showerror( \"Error\", f\"Failed to save results: {e}\" )\n    \n    def load_test_results(self):\n        \"\"\"Load test results from a file.\"\"\"\n        filename = filedialog.askopenfilename( \n            filetypes=[(\"JSON files\", \"*.json\"), (\"All files\", \"*.*\")]\n        )\n        \n        if filename:\n            try:\n                with open( filename, 'r' ) as f:\n                    results = json.load( f )\n                self.last_results = results\n                self._update_results( results )\n                messagebox.showinfo( \"Loaded\", f\"Test results loaded from {filename}\" )\n            except Exception as e:\n                messagebox.showerror( \"Error\", f\"Failed to load results: {e}\" )\n\n\nif __name__ == \"__main__\":\n    root = tk.Tk()\n    app = OCRTestGUI( root )\n    root.mainloop()"

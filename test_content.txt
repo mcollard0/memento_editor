@@ -1,0 +1,1 @@
+This is a test of comprehensive text capture that should capture all visible text, not just selected text
