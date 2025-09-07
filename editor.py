@@ -32,10 +32,12 @@ class EditorWindow:
         self.is_closing = False
         
         # Initialize encryption manager if available
-        self.encryption_manager = None
-        self.current_passphrase = None
+        self.encryption_manager = None;
+        self.current_passphrase = None;
         if HAS_ENCRYPTION:
-            self.encryption_manager = EncryptionManager(MEMENTO_ROOT)
+            # Use shared singleton EncryptionManager instance
+            from encryption import get_encryption_manager;
+            self.encryption_manager = get_encryption_manager( MEMENTO_ROOT );
         
         # Create main window
         self.root = tk.Tk()

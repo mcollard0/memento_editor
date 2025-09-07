@@ -165,8 +165,13 @@ Memento is a text editor with automatic saving, version history through ring buf
 - Added compression with Brotli
 - Extended ring buffer with dynamic sizing
 - Added comprehensive test suite
+- **NEW (2025-09-07)**: Refactored to persistent MongoDB connection architecture
+- **NEW**: Added MongoDBConnectionManager singleton with 1-hour session timeout
+- **NEW**: Converted EncryptionManager to singleton pattern
+- **IMPROVED**: Eliminated multiple MongoDB connection creation overhead
 
 **No database migrations required** - new features are additive and backward compatible.
+**No API breaking changes** - existing code continues to work with improved performance.
 
 ## Test Coverage
 
@@ -185,4 +190,4 @@ Memento is a text editor with automatic saving, version history through ring buf
 - **Dependency detection**: Graceful skipping when libraries unavailable
 - **Coverage reporting**: Success rate and detailed failure information
 
-Last Updated: 2025-01-09
+Last Updated: 2025-09-07 (MongoDB Connection Refactoring)

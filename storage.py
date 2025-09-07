@@ -47,13 +47,15 @@ class FileManager:
         self.last_modified = time.time()
         
         # Encryption support
-        self.encryption_manager = None
-        self._is_encrypted = False
-        self._current_passphrase = None
-        self._aes_key = None
+        self.encryption_manager = None;
+        self._is_encrypted = False;
+        self._current_passphrase = None;
+        self._aes_key = None;
         
         if HAS_ENCRYPTION:
-            self.encryption_manager = EncryptionManager(MEMENTO_ROOT)
+            # Use shared singleton EncryptionManager instance
+            from encryption import get_encryption_manager;
+            self.encryption_manager = get_encryption_manager( MEMENTO_ROOT );
         
         # Load existing control file if it exists
         self._load_control_file()
@@ -420,8 +422,8 @@ class FileManager:
         # Auto-migrate local mementos to MongoDB if available
         if auto_migrate and HAS_ENCRYPTION:
             try:
-                from encryption import EncryptionManager
-                encryption_manager = EncryptionManager(MEMENTO_ROOT)
+                from encryption import get_encryption_manager;
+                encryption_manager = get_encryption_manager( MEMENTO_ROOT );
                 
                 if encryption_manager.has_mongodb_support:
                     # Check if there are any unmigrated local mementos
@@ -432,10 +434,14 @@ class FileManager:
                             memento_id = int(item.name)
                             
                             # Check if exists in MongoDB
-                            existing = encryption_manager.mongo_collection.find_one({
-                                'memento_id': memento_id,
-                                'type': 'content'
-                            })
+                            collection = encryption_manager._get_mongo_collection();
+                            if collection is not None:
+                                existing = collection.find_one( {
+                                    'memento_id': memento_id,
+                                    'type': 'content'
+                                } );
+                            else:
+                                existing = None;
                             
                             if not existing:
                                 # Check if it's unencrypted (has .txt files)
@@ -479,8 +485,8 @@ class FileManager:
         # Add MongoDB-only mementos if available
         if HAS_ENCRYPTION:
             try:
-                from encryption import EncryptionManager
-                encryption_manager = EncryptionManager(MEMENTO_ROOT)
+                from encryption import get_encryption_manager;
+                encryption_manager = get_encryption_manager( MEMENTO_ROOT );
                 
                 if encryption_manager.has_mongodb_support:
                     # Get all memento IDs from MongoDB
@@ -488,10 +494,14 @@ class FileManager:
                     local_ids = set(int(item.name) for item in MEMENTO_ROOT.iterdir() 
                                   if item.is_dir() and item.name.isdigit())
                     
-                    cursor = encryption_manager.mongo_collection.find(
-                        {'type': 'content'}, 
-                        {'memento_id': 1, 'timestamp': 1}
-                    )
+                    collection = encryption_manager._get_mongo_collection();
+                    if collection is not None:
+                        cursor = collection.find(
+                            { 'type': 'content' }, 
+                            { 'memento_id': 1, 'timestamp': 1 }
+                        );
+                    else:
+                        cursor = [];
                     
                     for doc in cursor:
                         memento_id = doc['memento_id']

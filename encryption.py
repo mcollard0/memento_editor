@@ -2,6 +2,8 @@
 """
 Encryption and compression module for Memento.
 Provides ECC encryption, Brotli compression, and MongoDB storage support.
+
+Refactored to use shared MongoDB connection via MongoDBConnectionManager singleton.
 """
 
 import os
@@ -28,14 +30,15 @@ try:
 except ImportError:
     HAS_CRYPTO = False
 
+# MongoDB connection via shared manager
 try:
-    import pymongo
     from bson.binary import Binary
     from bson.errors import BSONError
+    from mongodb_connection_manager import MongoDBConnectionManager, ConnectionUnavailableError
     HAS_PYMONGO = True
 except ImportError:
     HAS_PYMONGO = False
-    pymongo = None
+    Binary = None
 
 logger = logging.getLogger(__name__)
 
@@ -50,98 +53,103 @@ ESTIMATED_MAX_UNCOMPRESSED_SIZE_MB = 40
 
 
 class EncryptionManager:
-    """Manages encryption, compression, and storage for Memento."""
+    """Manages encryption, compression, and storage for Memento.
     
-    def __init__(self, memento_root: Path):
-        self.memento_root = Path(memento_root)
-        # Check both uppercase and lowercase environment variables
-        self.mongodb_uri = os.getenv('MONGODB_URI') or os.getenv('mongodb_uri')
-        self.mongo_client = None
-        self.mongo_db = None
-        self.mongo_collection = None
+    Now uses shared MongoDB connection via MongoDBConnectionManager singleton.
+    """
+    
+    # Class-level singleton instance
+    _instance = None;
+    _instance_lock = None;
+    
+    def __init__( self, memento_root: Path ):
+        """Initialize EncryptionManager instance.
+        
+        Note: Consider using get_instance() for singleton behavior.
+        """
+        self.memento_root = Path( memento_root );
         
         # Track warning state
-        self._warning_file = self.memento_root / '.mongo_warning_shown'
-        self._warning_count = self._load_warning_count()
-        
-        # Initialize MongoDB if available
-        if self.mongodb_uri and HAS_PYMONGO:
-            self._init_mongodb()
+        self._warning_file = self.memento_root / '.mongo_warning_shown';
+        self._warning_count = self._load_warning_count();
     
-    def _load_warning_count(self) -> int:
+    @classmethod
+    def get_instance( cls, memento_root: Path = None ) -> 'EncryptionManager':
+        """Get singleton instance of EncryptionManager.
+        
+        Args:
+            memento_root: Root directory for mementos (required on first call)
+            
+        Returns:
+            Singleton EncryptionManager instance
+        """
+        if cls._instance_lock is None:
+            import threading;
+            cls._instance_lock = threading.Lock();
+        
+        with cls._instance_lock:
+            if cls._instance is None:
+                if memento_root is None:
+                    raise ValueError( "memento_root required for first call to get_instance()" );
+                cls._instance = EncryptionManager( memento_root );
+            return cls._instance;
+    
+    def _load_warning_count( self ) -> int:
         """Load the number of times MongoDB warnings have been shown."""
         try:
             if self._warning_file.exists():
-                return int(self._warning_file.read_text().strip())
-        except (ValueError, IOError):
-            pass
-        return 0
+                return int( self._warning_file.read_text().strip() );
+        except ( ValueError, IOError ):
+            pass;
+        return 0;
     
-    def _save_warning_count(self, count: int):
+    def _save_warning_count( self, count: int ):
         """Save the warning count."""
         try:
-            self._warning_file.write_text(str(count))
+            self._warning_file.write_text( str( count ) );
         except IOError as e:
-            logger.error(f"Failed to save warning count: {e}")
+            logger.error( f"Failed to save warning count: {e}" );
     
-    def _init_mongodb(self):
-        """Initialize MongoDB connection."""
-        try:
-            self.mongo_client = pymongo.MongoClient(
-                self.mongodb_uri, 
-                serverSelectionTimeoutMS=5000,  # 5 second timeout
-                connectTimeoutMS=5000
-            )
-            
-            # Test connection
-            self.mongo_client.server_info()
-            
-            # Create/get database
-            self.mongo_db = self.mongo_client.memento_storage
-            self.mongo_collection = self.mongo_db.mementos
-            
-            # Test write capability
-            test_doc = {"_test": True, "data": Binary(b"test")}
-            result = self.mongo_collection.insert_one(test_doc)
-            self.mongo_collection.delete_one({"_id": result.inserted_id})
-            
-            logger.info("MongoDB connection established successfully")
-            
-        except Exception as e:
-            logger.error(f"MongoDB initialization failed: {e}")
-            self.mongo_client = None
-            self.mongo_db = None
-            self.mongo_collection = None
-            
-            # Show warning if we haven't shown too many
-            if self._warning_count < 2:
-                self._show_mongodb_warning(str(e))
-                self._warning_count += 1
-                self._save_warning_count(self._warning_count)
-    
-    def _show_mongodb_warning(self, error_message: str):
+    def _show_mongodb_warning( self, error_message: str ):
         """Show MongoDB connection warning."""
         try:
-            from tkinter import messagebox
+            from tkinter import messagebox;
             messagebox.showwarning(
                 "MongoDB Connection Warning",
                 f"Failed to connect to MongoDB:\n{error_message}\n\n"
                 f"Falling back to local file storage.\n"
                 f"This warning will only be shown {2 - self._warning_count} more time(s)."
-            )
+            );
         except ImportError:
             # Fallback if tkinter not available
-            logger.warning(f"MongoDB connection failed: {error_message}")
+            logger.warning( f"MongoDB connection failed: {error_message}" );
     
     @property
-    def has_encryption_support(self) -> bool:
+    def has_encryption_support( self ) -> bool:
         """Check if encryption is supported."""
-        return HAS_CRYPTO and HAS_BROTLI
+        return HAS_CRYPTO and HAS_BROTLI;
     
     @property
-    def has_mongodb_support(self) -> bool:
-        """Check if MongoDB is available and connected."""
-        return self.mongo_collection is not None
+    def has_mongodb_support( self ) -> bool:
+        """Check if MongoDB is available and connected via shared connection manager."""
+        if not HAS_PYMONGO:
+            return False;
+        return MongoDBConnectionManager.is_connected();
+    
+    def _get_mongo_collection( self, collection_name: str = "mementos" ):
+        """Get MongoDB collection via shared connection manager.
+        
+        Args:
+            collection_name: Name of collection (default: mementos)
+            
+        Returns:
+            Collection instance or None if not available
+        """
+        try:
+            return MongoDBConnectionManager.get_collection( collection_name );
+        except Exception as e:
+            # Connection manager will log the error
+            return None;
     
     @property
     def estimated_max_size_mb(self) -> int:
@@ -230,109 +238,139 @@ class EncryptionManager:
         # This is a heuristic - we can't definitively know without trying to decrypt
         return True
     
-    def save_encrypted_key(self, private_key: bytes, public_key: bytes, memento_id: int):
+    def save_encrypted_key( self, private_key: bytes, public_key: bytes, memento_id: int ):
         """Save encrypted private key to storage."""
         key_data = {
             'memento_id': memento_id,
             'private_key': private_key,
             'public_key': public_key,
             'created_at': self._get_timestamp()
-        }
+        };
         
-        if self.has_mongodb_support:
-            # Save to MongoDB
-            key_data['private_key'] = Binary(private_key)
-            key_data['public_key'] = Binary(public_key)
+        collection = self._get_mongo_collection();
+        if collection is not None:
+            # Save to MongoDB via shared connection
+            key_data[ 'private_key' ] = Binary( private_key );
+            key_data[ 'public_key' ] = Binary( public_key );
             
-            # Upsert the key
-            self.mongo_collection.update_one(
-                {'memento_id': memento_id, 'type': 'encryption_key'},
-                {'$set': {**key_data, 'type': 'encryption_key'}},
-                upsert=True
-            )
+            try:
+                # Upsert the key
+                collection.update_one(
+                    { 'memento_id': memento_id, 'type': 'encryption_key' },
+                    { '$set': { **key_data, 'type': 'encryption_key' } },
+                    upsert=True
+                );
+            except Exception as e:
+                logger.error( f"Failed to save encryption key to MongoDB: {e}" );
+                # Fall back to local storage
+                self._save_key_to_local_file( memento_id, private_key, public_key, key_data[ 'created_at' ] );
         else:
             # Save to local file
-            key_file = self.memento_root / f"{memento_id}.key"
-            key_file.write_bytes(json.dumps({
-                'private_key': private_key.hex(),
-                'public_key': public_key.hex(),
-                'created_at': key_data['created_at']
-            }).encode())
+            self._save_key_to_local_file( memento_id, private_key, public_key, key_data[ 'created_at' ] );
     
-    def load_encrypted_key(self, memento_id: int) -> Optional[Tuple[bytes, bytes]]:
+    def _save_key_to_local_file( self, memento_id: int, private_key: bytes, public_key: bytes, created_at: float ):
+        """Helper method to save encryption key to local file."""
+        key_file = self.memento_root / f"{memento_id}.key";
+        key_file.write_bytes( json.dumps( {
+            'private_key': private_key.hex(),
+            'public_key': public_key.hex(),
+            'created_at': created_at
+        } ).encode() );
+    
+    def load_encrypted_key( self, memento_id: int ) -> Optional[ Tuple[ bytes, bytes ] ]:
         """Load encrypted private key from storage."""
-        if self.has_mongodb_support:
-            # Load from MongoDB
-            doc = self.mongo_collection.find_one({
-                'memento_id': memento_id,
-                'type': 'encryption_key'
-            })
-            if doc:
-                return bytes(doc['private_key']), bytes(doc['public_key'])
-        else:
-            # Load from local file
-            key_file = self.memento_root / f"{memento_id}.key"
-            if key_file.exists():
-                try:
-                    key_data = json.loads(key_file.read_bytes())
-                    return (
-                        bytes.fromhex(key_data['private_key']),
-                        bytes.fromhex(key_data['public_key'])
-                    )
-                except (json.JSONDecodeError, KeyError, ValueError):
-                    pass
+        collection = self._get_mongo_collection();
+        if collection is not None:
+            # Load from MongoDB via shared connection
+            try:
+                doc = collection.find_one( {
+                    'memento_id': memento_id,
+                    'type': 'encryption_key'
+                } );
+                if doc:
+                    return bytes( doc[ 'private_key' ] ), bytes( doc[ 'public_key' ] );
+            except Exception as e:
+                logger.error( f"Failed to load encryption key from MongoDB: {e}" );
+                # Fall back to local file
         
-        return None
+        # Load from local file (fallback or no MongoDB)
+        key_file = self.memento_root / f"{memento_id}.key";
+        if key_file.exists():
+            try:
+                key_data = json.loads( key_file.read_bytes() );
+                return (
+                    bytes.fromhex( key_data[ 'private_key' ] ),
+                    bytes.fromhex( key_data[ 'public_key' ] )
+                );
+            except ( json.JSONDecodeError, KeyError, ValueError ):
+                pass;
+        
+        return None;
     
-    def save_encrypted_content(self, memento_id: int, content: str, aes_key: bytes):
+    def save_encrypted_content( self, memento_id: int, content: str, aes_key: bytes ):
         """Save encrypted content to storage."""
-        encrypted_data = self.encrypt_data(content, aes_key)
+        encrypted_data = self.encrypt_data( content, aes_key );
         
         content_doc = {
             'memento_id': memento_id,
             'type': 'content',
             'timestamp': self._get_timestamp(),
             'data': encrypted_data
-        }
+        };
         
-        if self.has_mongodb_support:
-            # Check size limit
-            if len(encrypted_data) > 15 * 1024 * 1024:  # 15MB safety margin
-                raise ValueError(f"Encrypted data too large for MongoDB ({len(encrypted_data) / 1024 / 1024:.1f}MB)")
+        collection = self._get_mongo_collection();
+        if collection is not None:
+            # Check size limit for MongoDB
+            if len( encrypted_data ) > 15 * 1024 * 1024:  # 15MB safety margin
+                raise ValueError( f"Encrypted data too large for MongoDB ({len(encrypted_data) / 1024 / 1024:.1f}MB)" );
             
-            content_doc['data'] = Binary(encrypted_data)
-            self.mongo_collection.insert_one(content_doc)
+            try:
+                content_doc[ 'data' ] = Binary( encrypted_data );
+                collection.insert_one( content_doc );
+            except Exception as e:
+                logger.error( f"Failed to save encrypted content to MongoDB: {e}" );
+                # Fall back to local storage
+                self._save_content_to_local_file( memento_id, encrypted_data );
         else:
-            # Save to local file
-            content_file = self.memento_root / f"{memento_id}.enc"
-            content_file.write_bytes(encrypted_data)
+            # Save to local file (fallback or no MongoDB)
+            self._save_content_to_local_file( memento_id, encrypted_data );
     
-    def load_encrypted_content(self, memento_id: int, aes_key: bytes) -> Optional[str]:
+    def _save_content_to_local_file( self, memento_id: int, encrypted_data: bytes ):
+        """Helper method to save encrypted content to local file."""
+        content_file = self.memento_root / f"{memento_id}.enc";
+        content_file.write_bytes( encrypted_data );
+    
+    def load_encrypted_content( self, memento_id: int, aes_key: bytes ) -> Optional[ str ]:
         """Load and decrypt content from storage."""
-        if self.has_mongodb_support:
-            # Load from MongoDB (get latest)
-            doc = self.mongo_collection.find_one(
-                {'memento_id': memento_id, 'type': 'content'},
-                sort=[('timestamp', -1)]
-            )
-            if doc:
-                encrypted_data = bytes(doc['data'])
-                return self.decrypt_data(encrypted_data, aes_key)
-        else:
-            # Load from local file
-            content_file = self.memento_root / f"{memento_id}.enc"
-            if content_file.exists():
-                encrypted_data = content_file.read_bytes()
-                return self.decrypt_data(encrypted_data, aes_key)
+        collection = self._get_mongo_collection();
+        if collection is not None:
+            # Load from MongoDB via shared connection (get latest)
+            try:
+                doc = collection.find_one(
+                    { 'memento_id': memento_id, 'type': 'content' },
+                    sort=[ ( 'timestamp', -1 ) ]
+                );
+                if doc:
+                    encrypted_data = bytes( doc[ 'data' ] );
+                    return self.decrypt_data( encrypted_data, aes_key );
+            except Exception as e:
+                logger.error( f"Failed to load encrypted content from MongoDB: {e}" );
+                # Fall back to local file
         
-        return None
+        # Load from local file (fallback or no MongoDB)
+        content_file = self.memento_root / f"{memento_id}.enc";
+        if content_file.exists():
+            encrypted_data = content_file.read_bytes();
+            return self.decrypt_data( encrypted_data, aes_key );
+        
+        return None;
     
-    def _get_timestamp(self) -> float:
+    def _get_timestamp( self ) -> float:
         """Get current timestamp."""
-        import time
-        return time.time()
+        import time;
+        return time.time();
     
-    def migrate_local_mementos_to_mongodb(self, passphrase: str = None) -> int:
+    def migrate_local_mementos_to_mongodb( self, passphrase: str = None ) -> int:
         """Migrate local unencrypted mementos to MongoDB with encryption.
         
         Args:
@@ -342,118 +380,122 @@ class EncryptionManager:
             Number of mementos migrated
         """
         if not self.has_mongodb_support:
-            logger.info("MongoDB not available - skipping migration")
-            return 0
+            logger.info( "MongoDB not available - skipping migration" );
+            return 0;
         
         if not self.has_encryption_support:
-            logger.warning("Encryption not available - cannot migrate to MongoDB")
-            return 0
+            logger.warning( "Encryption not available - cannot migrate to MongoDB" );
+            return 0;
         
         # Import here to avoid circular imports
-        from storage import FileManager, MEMENTO_ROOT
-        from constants import make_dirs_if_missing
+        from storage import FileManager, MEMENTO_ROOT;
+        from constants import make_dirs_if_missing;
         
         if not MEMENTO_ROOT.exists():
-            logger.info("No local memento directory found")
-            return 0
+            logger.info( "No local memento directory found" );
+            return 0;
         
-        migrated_count = 0
-        logger.info("Starting migration of local mementos to MongoDB")
+        collection = self._get_mongo_collection();
+        if collection is None:
+            logger.error( "Could not get MongoDB collection for migration" );
+            return 0;
+        
+        migrated_count = 0;
+        logger.info( "Starting migration of local mementos to MongoDB" );
         
         # Find all local mementos
         for item in MEMENTO_ROOT.iterdir():
             if item.is_dir() and item.name.isdigit():
-                memento_id = int(item.name)
+                memento_id = int( item.name );
                 
                 try:
                     # Check if already exists in MongoDB
-                    existing_content = self.mongo_collection.find_one({
+                    existing_content = collection.find_one( {
                         'memento_id': memento_id,
                         'type': 'content'
-                    })
+                    } );
                     
                     if existing_content:
-                        logger.info(f"Memento {memento_id} already exists in MongoDB - skipping")
-                        continue
+                        logger.info( f"Memento {memento_id} already exists in MongoDB - skipping" );
+                        continue;
                     
                     # Load the local memento
-                    file_manager = FileManager(memento_id)
+                    file_manager = FileManager( memento_id );
                     
                     # Skip if already encrypted (shouldn't happen but safety check)
                     if file_manager.is_encrypted():
-                        logger.info(f"Memento {memento_id} is already encrypted - skipping")
-                        continue
+                        logger.info( f"Memento {memento_id} is already encrypted - skipping" );
+                        continue;
                     
                     # Get the current content
-                    content = file_manager.load_current_snapshot()
+                    content = file_manager.load_current_snapshot();
                     
                     if not content or content.strip() == "":
-                        logger.info(f"Memento {memento_id} is empty - skipping")
-                        continue
+                        logger.info( f"Memento {memento_id} is empty - skipping" );
+                        continue;
                     
                     # Get passphrase if not provided
                     if passphrase is None:
-                        passphrase = self._prompt_for_passphrase(memento_id)
+                        passphrase = self._prompt_for_passphrase( memento_id );
                         if not passphrase:
-                            logger.info(f"No passphrase provided for memento {memento_id} - skipping")
-                            continue
+                            logger.info( f"No passphrase provided for memento {memento_id} - skipping" );
+                            continue;
                     
                     # Enable encryption on the memento (this will trigger MongoDB storage)
-                    file_manager.enable_encryption(passphrase)
+                    file_manager.enable_encryption( passphrase );
                     
                     # Force re-save to ensure MongoDB storage  
-                    current_content = file_manager.load_current_snapshot()
-                    file_manager.write_snapshot(current_content)
+                    current_content = file_manager.load_current_snapshot();
+                    file_manager.write_snapshot( current_content );
                     
                     # Verify it was saved to MongoDB (check with small delay)
-                    import time
-                    time.sleep(0.1)  # Small delay for async operations
+                    import time;
+                    time.sleep( 0.1 );  # Small delay for async operations
                     
-                    mongodb_content = self.mongo_collection.find_one({
+                    mongodb_content = collection.find_one( {
                         'memento_id': memento_id,
                         'type': 'content'
-                    })
+                    } );
                     
                     if mongodb_content:
-                        logger.info(f"✅ Successfully migrated memento {memento_id} to MongoDB")
-                        migrated_count += 1
+                        logger.info( f"✅ Successfully migrated memento {memento_id} to MongoDB" );
+                        migrated_count += 1;
                         
                         # Create a backup of original local files before cleanup
-                        self._backup_local_memento(memento_id, item)
+                        self._backup_local_memento( memento_id, item );
                     else:
-                        # Check if the issue is with database name
-                        logger.warning(f"Could not verify memento {memento_id} in MongoDB collection '{self.mongo_collection.name}'")
-                        
                         # Try to save directly using the encryption manager
+                        logger.warning( f"Could not verify memento {memento_id} in MongoDB collection - attempting direct save" );
+                        
                         try:
                             # Use the EncryptionManager to save directly to MongoDB
-                            aes_key = file_manager._aes_key
+                            aes_key = file_manager._aes_key;
                             if aes_key:
-                                self.save_encrypted_content(memento_id, current_content, aes_key)
+                                self.save_encrypted_content( memento_id, current_content, aes_key );
                                 
                                 # Verify again
-                                mongodb_content = self.mongo_collection.find_one({
+                                mongodb_content = collection.find_one( {
                                     'memento_id': memento_id,
                                     'type': 'content'
-                                })
+                                } );
                                 
                                 if mongodb_content:
-                                    logger.info(f"✅ Successfully migrated memento {memento_id} to MongoDB (direct save)")
-                                    migrated_count += 1
-                                    self._backup_local_memento(memento_id, item)
+                                    logger.info( f"✅ Successfully migrated memento {memento_id} to MongoDB (direct save)" );
+                                    migrated_count += 1;
+                                    self._backup_local_memento( memento_id, item );
                                 else:
-                                    logger.error(f"Failed to verify memento {memento_id} even after direct save")
+                                    logger.error( f"Failed to verify memento {memento_id} even after direct save" );
                             else:
-                                logger.error(f"No AES key available for memento {memento_id}")
+                                logger.error( f"No AES key available for memento {memento_id}" );
                         except Exception as direct_save_error:
-                            logger.error(f"Direct save failed for memento {memento_id}: {direct_save_error}")
+                            logger.error( f"Direct save failed for memento {memento_id}: {direct_save_error}" );
                         
                 except Exception as e:
-                    logger.error(f"Error migrating memento {memento_id}: {e}")
-                    continue
+                    logger.error( f"Error migrating memento {memento_id}: {e}" );
+                    continue;
         
-        logger.info(f"Migration completed: {migrated_count} mementos migrated to MongoDB")
-        return migrated_count
+        logger.info( f"Migration completed: {migrated_count} mementos migrated to MongoDB" );
+        return migrated_count;
     
     def _prompt_for_passphrase(self, memento_id: int) -> str:
         """Prompt user for encryption passphrase."""
@@ -511,11 +553,61 @@ class EncryptionManager:
 
 def get_missing_dependencies() -> list:
     """Get list of missing optional dependencies."""
-    missing = []
+    missing = [];
     if not HAS_BROTLI:
-        missing.append("Brotli")
+        missing.append( "Brotli" );
     if not HAS_CRYPTO:
-        missing.append("cryptography")
+        missing.append( "cryptography" );
     if not HAS_PYMONGO:
-        missing.append("pymongo")
-    return missing
+        missing.append( "pymongo" );
+    return missing;
+
+
+# Module-level singleton instance (lazy initialization)
+_global_encryption_manager = None;
+
+
+def get_encryption_manager( memento_root: Path = None ) -> Optional[ EncryptionManager ]:
+    """Get the global singleton EncryptionManager instance.
+    
+    Args:
+        memento_root: Root directory for mementos (required on first call)
+        
+    Returns:
+        Singleton EncryptionManager instance or None if cannot be initialized
+    """
+    global _global_encryption_manager;
+    
+    if _global_encryption_manager is None:
+        if memento_root is None:
+            # Try to get from constants
+            try:
+                from constants import MEMENTO_ROOT;
+                memento_root = MEMENTO_ROOT;
+            except ImportError:
+                return None;
+        
+        try:
+            _global_encryption_manager = EncryptionManager.get_instance( memento_root );
+        except Exception as e:
+            logger.error( f"Failed to initialize global EncryptionManager: {e}" );
+            return None;
+    
+    return _global_encryption_manager;
+
+
+def init_encryption_manager( memento_root: Path ) -> bool:
+    """Initialize the global EncryptionManager instance.
+    
+    Args:
+        memento_root: Root directory for mementos
+        
+    Returns:
+        True if successfully initialized, False otherwise
+    """
+    try:
+        get_encryption_manager( memento_root );
+        return True;
+    except Exception as e:
+        logger.error( f"Failed to initialize EncryptionManager: {e}" );
+        return False;
