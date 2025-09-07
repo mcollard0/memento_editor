@@ -695,4 +695,9 @@ Ctrl+Y - Redo"""
 
 def create_editor(file_manager: FileManager) -> EditorWindow:
     """Create and return a new editor window."""
-    return EditorWindow(file_manager)
+    editor = EditorWindow(file_manager)
+    
+    # DISABLED 2025-09-07 - capture feature removed per user request
+    # if False: add_text_capture_to_editor(editor)
+    
+    return editor
