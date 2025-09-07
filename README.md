@@ -11,13 +11,16 @@ And my hard earned, much considered, too lengthy and probably annoying message w
 
 So. Here we are. A text editor that saves constantly to a ring buffer. 
 
-## Future Features
+## Design Philosophy
 
-The next logical step is to integrate it into the GUI so that whatever window you're working on, it captures the text, and saves it. 
+This editor focuses on simplicity and reliability. An earlier experiment with automatic text capture from external applications was explored but ultimately removed due to:
 
-At this point, I thought it would be creepy, requires encryption, privacy concerns, and so forth. 
+- API reliability issues (rate limiting, external dependencies)
+- Unnecessary complexity for the core use case  
+- Privacy and security concerns
+- The realization that manual copy-paste is often the better solution
 
-But as a mental exercise, I enjoyed this. 
+Sometimes the elegant solution is the simple one.
 
 ## Features
 
