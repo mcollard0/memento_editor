@@ -1,12 +1,12 @@
-# Memento Text Editor Architecture
+# memento Text Editor Architecture
 
 ## Overview
-Memento is a text editor with automatic saving, version history through ring buffers, and optional encryption with MongoDB storage support.
+memento is a text editor with automatic saving, version history through ring buffers, and optional encryption with MongoDB storage support.
 
 ## Database Schema
 
 ### Local File Storage
-- **Directory Structure**: `~/.Memento/{memento_id}/`
+- **Directory Structure**: `~/.memento/{memento_id}/`
 - **Control Files**: `control.json` - contains metadata and ring buffer configuration
 - **Content Files**: 
   - Plaintext: `{index}.txt` 
@@ -90,7 +90,7 @@ Memento is a text editor with automatic saving, version history through ring buf
 
 ### Migration Workflow (Local → MongoDB)
 1. **Auto-Detection**: When `list_mementos()` is called and MongoDB is available
-2. **Check for Local Mementos**: Scans for unencrypted `.txt` files not in MongoDB
+2. **Check for Local mementos**: Scans for unencrypted `.txt` files not in MongoDB
 3. **User Prompt**: GUI dialog shows memento preview and requests encryption passphrase
 4. **Migration Process**: 
    - Enables encryption with user passphrase
@@ -104,7 +104,7 @@ Memento is a text editor with automatic saving, version history through ring buf
 2. **Encoding Detection**: Auto-detects UTF-8, Latin-1, CP1252, ISO-8859-1
 3. **Metadata Addition**: Prepends import source and timestamp to content
 4. **Encryption Option**: Optional passphrase for MongoDB storage
-5. **Memento Creation**: Creates new memento with imported content
+5. **memento Creation**: Creates new memento with imported content
 6. **Auto-Open**: Directly opens imported memento in editor
 
 ## Current Feature Status
@@ -117,7 +117,7 @@ Memento is a text editor with automatic saving, version history through ring buf
 - ECC key pair generation for future features
 - Auto-save with configurable idle detection
 - Cross-platform GUI with tkinter
-- Memento selector and management
+- memento selector and management
 - **Automatic migration from local to MongoDB** (when MongoDB available)
 - **Text file import with encryption options** (via GUI dialog)
 - Comprehensive test coverage

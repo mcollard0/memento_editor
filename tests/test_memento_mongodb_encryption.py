@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive integration test for Memento text editor.
+Comprehensive integration test for memento text editor.
 Tests MongoDB storage, Brotli compression, and AES encryption functionality.
 
 Style note: Following user preferences for spaces in brackets and semicolons.
@@ -22,8 +22,8 @@ from encryption import EncryptionManager;
 from constants import MEMENTO_ROOT;
 
 
-class TestMementoMongoDBEncryption( unittest.TestCase ):
-    """Test suite for Memento MongoDB encryption and compression functionality."""
+class TestmementoMongoDBEncryption( unittest.TestCase ):
+    """Test suite for memento MongoDB encryption and compression functionality."""
     
     @classmethod
     def setUpClass( cls ):
@@ -138,7 +138,7 @@ class TestMementoMongoDBEncryption( unittest.TestCase ):
         
         # Check if already encrypted (skip if so)
         if file_manager.is_encrypted():
-            print( f"Memento {memento_id} already encrypted, creating new one" );
+            print( f"memento {memento_id} already encrypted, creating new one" );
             memento_id = 102;
             file_manager = FileManager( memento_id );
         
@@ -243,7 +243,7 @@ class TestMementoMongoDBEncryption( unittest.TestCase ):
                 # This would be the ideal behavior
                 self.assertFalse( wrong_result, "Wrong passphrase should fail verification" );
         else:
-            self.skipTest( "Memento encryption setup failed" );
+            self.skipTest( "memento encryption setup failed" );
 
     def test_mongodb_connection_and_storage( self ):
         """Test MongoDB connection and basic storage operations."""
@@ -377,7 +377,7 @@ def run_tests_with_coverage():
     
     # Run the test suite
     loader = unittest.TestLoader();
-    suite = loader.loadTestsFromTestCase( TestMementoMongoDBEncryption );
+    suite = loader.loadTestsFromTestCase( TestmementoMongoDBEncryption );
     runner = unittest.TextTestRunner( verbosity=2 );
     result = runner.run( suite );
     

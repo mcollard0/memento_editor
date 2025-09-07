@@ -1,4 +1,4 @@
-# Memento Text Editor Requirements
+# memento Text Editor Requirements
 # Core application uses only Python standard library modules.
 # Optional encryption and MongoDB support requires additional dependencies.
 

@@ -39,7 +39,7 @@ def test_app_flow():
             
             # Test if it's encrypted
             if existing_manager.is_encrypted():
-                print( "✓ Memento is encrypted" );
+                print( "✓ memento is encrypted" );
                 
                 # Test passphrase verification
                 if existing_manager.verify_passphrase( "testpass123" ):
@@ -54,7 +54,7 @@ def test_app_flow():
                 else:
                     print( "✗ Passphrase verification failed" );
             else:
-                print( "- Memento is not encrypted" );
+                print( "- memento is not encrypted" );
                 
             # Test editor creation for existing memento
             print( "Testing editor for existing memento..." );

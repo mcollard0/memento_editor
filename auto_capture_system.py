@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Automatic Multi-Window Text Capture System for Memento
+Automatic Multi-Window Text Capture System for memento
 Continuously monitors active windows and captures text content to separate mementos.
 """
 
@@ -293,7 +293,7 @@ class AutoCaptureGUI:
     def __init__(self):
         self.capture_system = AutoCaptureSystem(gui_callback=self._show_captured_text)
         self.root = tk.Tk()
-        self.root.title("Memento Auto-Capture System")
+        self.root.title("memento Auto-Capture System")
         self.root.geometry("1200x900")
         
         self.status_text = tk.StringVar(value="Stopped")
@@ -311,7 +311,7 @@ class AutoCaptureGUI:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title
-        title_label = tk.Label(main_frame, text="Memento Auto-Capture System", 
+        title_label = tk.Label(main_frame, text="memento Auto-Capture System", 
                               font=('TkDefaultFont', 16, 'bold'))
         title_label.pack(pady=(0, 20))
         
@@ -363,7 +363,7 @@ class AutoCaptureGUI:
         self.tracking_tree = ttk.Treeview(tracking_frame, columns=('name', 'class', 'memento_id', 'last_update'), show='headings', height=12)
         self.tracking_tree.heading('name', text='Window Name')
         self.tracking_tree.heading('class', text='Application')
-        self.tracking_tree.heading('memento_id', text='Memento ID')
+        self.tracking_tree.heading('memento_id', text='memento ID')
         self.tracking_tree.heading('last_update', text='Last Update')
         
         self.tracking_tree.column('name', width=300)

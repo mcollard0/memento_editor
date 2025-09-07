@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fixed version of autosave timer module for the Memento text editor.
+Fixed version of autosave timer module for the memento text editor.
 Provides idle detection and automatic saving when user stops typing.
 Fixes the deadlock issue in the original implementation.
 """

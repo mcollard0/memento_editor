@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main application entry point for the Memento text editor.
+Main application entry point for the memento text editor.
 Integrates all components and manages the application workflow.
 """
 
@@ -103,9 +103,9 @@ def main():
     logger = setup_logging()
     
     try:
-        # Ensure the .Memento directory exists
+        # Ensure the .memento directory exists
         make_dirs_if_missing(MEMENTO_ROOT)
-        logger.info(f"Memento directory: {MEMENTO_ROOT}")
+        logger.info(f"memento directory: {MEMENTO_ROOT}")
         
         # Show the selector to start
         start_memento_selector()

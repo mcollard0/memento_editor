@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Memento Text Editor Launcher
+memento Text Editor Launcher
 A simple, elegant text editor with automatic saving and version history.
 """
 
@@ -22,7 +22,7 @@ try:
     from memento import main
     main()
 except KeyboardInterrupt:
-    print("\nMemento closed by user.")
+    print("\nmemento closed by user.")
 except Exception as e:
-    print(f"Error starting Memento: {e}")
+    print(f"Error starting memento: {e}")
     sys.exit(1)

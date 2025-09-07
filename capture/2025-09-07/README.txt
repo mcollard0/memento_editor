@@ -22,8 +22,8 @@ LESSONS LEARNED:
 - Rate limiting can render automated systems unusable
 
 CONTENTS:
-- auto_capture.log: Complete log of capture attempts showing API failures
-- *.png files: Screenshot artifacts from capture attempts
+- auto_capture.log: [REMOVED - 296MB file too large for git repository]
+- *.png files: Screenshot artifacts from capture attempts  
 - This README.txt: Documentation of the experiment
 
 OUTCOME:

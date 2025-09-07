@@ -1,4 +1,4 @@
-# Memento Text Editor
+# memento Text Editor
 
 A simple, elegant text editor with automatic saving and version history through ring buffers.
 
@@ -26,7 +26,7 @@ Sometimes the elegant solution is the simple one.
 
 - **Automatic Saving**: Saves your work automatically when you stop typing (configurable idle time)
 - **Ring Buffer Versioning**: Maintains multiple versions of your text with intelligent buffer sizing
-- **Multiple Mementos**: Organize your writing into separate mementos (documents)
+- **Multiple mementos**: Organize your writing into separate mementos (documents)
 - **Clean Interface**: Minimalist text editor focused on writing
 - **Cross-Platform**: Works on Linux, macOS, and Windows with Python 3.8+
 
@@ -79,7 +79,7 @@ python3 memento.py
 
 On first launch, you'll see the memento selector with no existing mementos. Click "Create New" to start your first memento.
 
-### Working with Mementos
+### Working with mementos
 
 - **Create New**: Start a new memento (document)
 - **Open Existing**: Select from your existing mementos
@@ -91,10 +91,10 @@ On first launch, you'll see the memento selector with no existing mementos. Clic
 
 ### Data Storage
 
-All data is stored in `~/.Memento/` directory:
+All data is stored in `~/.memento/` directory:
 
 ```
-~/.Memento/
+~/.memento/
 ├── 0/                    # First memento
 │   ├── control.json     # Metadata and ring buffer info
 │   ├── 0.txt           # Snapshot files
@@ -121,7 +121,7 @@ The application consists of several modules:
 - `memento.py`: Main application entry point and workflow management
 - `storage.py`: File management and ring buffer logic
 - `editor.py`: Main text editor window
-- `selector.py`: Memento selection interface
+- `selector.py`: memento selection interface
 - `autosave.py`: Automatic saving logic based on idle detection
 - `constants.py`: Configuration and utility functions
 
@@ -145,11 +145,11 @@ sudo apt install python3-tk
 
 ### Permission Errors
 
-Ensure you have write permissions to your home directory for the `~/.Memento/` folder.
+Ensure you have write permissions to your home directory for the `~/.memento/` folder.
 
 ### Application Crashes
 
-Check the log file at `~/.Memento/memento.log` for error details.
+Check the log file at `~/.memento/memento.log` for error details.
 
 ## Development
 

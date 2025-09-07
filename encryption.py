@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Encryption and compression module for Memento.
+Encryption and compression module for memento.
 Provides ECC encryption, Brotli compression, and MongoDB storage support.
 """
 
@@ -50,7 +50,7 @@ ESTIMATED_MAX_UNCOMPRESSED_SIZE_MB = 40
 
 
 class EncryptionManager:
-    """Manages encryption, compression, and storage for Memento."""
+    """Manages encryption, compression, and storage for memento."""
     
     def __init__(self, memento_root: Path):
         self.memento_root = Path(memento_root)
@@ -373,7 +373,7 @@ class EncryptionManager:
                     })
                     
                     if existing_content:
-                        logger.info(f"Memento {memento_id} already exists in MongoDB - skipping")
+                        logger.info(f"memento {memento_id} already exists in MongoDB - skipping")
                         continue
                     
                     # Load the local memento
@@ -381,14 +381,14 @@ class EncryptionManager:
                     
                     # Skip if already encrypted (shouldn't happen but safety check)
                     if file_manager.is_encrypted():
-                        logger.info(f"Memento {memento_id} is already encrypted - skipping")
+                        logger.info(f"memento {memento_id} is already encrypted - skipping")
                         continue
                     
                     # Get the current content
                     content = file_manager.load_current_snapshot()
                     
                     if not content or content.strip() == "":
-                        logger.info(f"Memento {memento_id} is empty - skipping")
+                        logger.info(f"memento {memento_id} is empty - skipping")
                         continue
                     
                     # Get passphrase if not provided
@@ -470,14 +470,14 @@ class EncryptionManager:
             preview = fm.get_first_line()
             
             messagebox.showinfo(
-                "Memento Migration",
+                "memento Migration",
                 f"Found local memento {memento_id}:\n\n"
                 f"Preview: {preview[:100]}{'...' if len(preview) > 100 else ''}\n\n"
                 f"This memento will be encrypted and migrated to MongoDB."
             )
             
             passphrase = simpledialog.askstring(
-                f"Encrypt Memento {memento_id}",
+                f"Encrypt memento {memento_id}",
                 "Enter passphrase for encryption:",
                 show='*'
             )

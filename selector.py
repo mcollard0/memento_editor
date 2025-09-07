@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Startup selector window for the Memento text editor.
+Startup selector window for the memento text editor.
 Allows users to choose existing mementos or create new ones.
 """
 
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional
-from storage import FileManager, MementoInfo
+from storage import FileManager, mementoInfo
 
 
 class StartupSelector:
@@ -16,7 +16,7 @@ class StartupSelector:
     def __init__(self, parent=None):
         self.result = None  # Will hold the selected memento_id or None for new
         self.root = tk.Toplevel(parent) if parent else tk.Tk()
-        self.root.title("Memento - Select or Create")
+        self.root.title("memento - Select or Create")
         self.root.geometry("600x400")
         self.root.resizable(True, True)
         

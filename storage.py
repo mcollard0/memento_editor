@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Storage and ring buffer management for the Memento text editor application.
+Storage and ring buffer management for the memento text editor application.
 Handles file persistence, version control through ring buffers, and memento metadata.
 """
 
@@ -24,7 +24,7 @@ except ImportError:
     HAS_ENCRYPTION = False
 
 
-class MementoInfo:
+class mementoInfo:
     """Information about a memento for display in the selector."""
     def __init__(self, memento_id: int, first_line: str, last_modified: datetime):
         self.memento_id = memento_id
@@ -194,7 +194,7 @@ class FileManager:
     def enable_encryption(self, passphrase: str):
         """Enable encryption for this memento."""
         if self._is_encrypted:
-            raise ValueError("Memento is already encrypted")
+            raise ValueError("memento is already encrypted")
         
         if not self.encryption_manager:
             raise RuntimeError("Encryption not available")
@@ -220,7 +220,7 @@ class FileManager:
     def disable_encryption(self, passphrase: str):
         """Disable encryption for this memento."""
         if not self._is_encrypted:
-            raise ValueError("Memento is not encrypted")
+            raise ValueError("memento is not encrypted")
         
         if not self.verify_passphrase(passphrase):
             raise ValueError("Invalid passphrase")
@@ -245,7 +245,7 @@ class FileManager:
     def change_passphrase(self, old_passphrase: str, new_passphrase: str):
         """Change the encryption passphrase."""
         if not self._is_encrypted:
-            raise ValueError("Memento is not encrypted")
+            raise ValueError("memento is not encrypted")
         
         if not self.verify_passphrase(old_passphrase):
             raise ValueError("Invalid current passphrase")
@@ -408,7 +408,7 @@ class FileManager:
         return FileManager(memento_id)
     
     @staticmethod
-    def list_mementos(auto_migrate: bool = True) -> List[MementoInfo]:
+    def list_mementos(auto_migrate: bool = True) -> List[mementoInfo]:
         """List all existing mementos with metadata.
         
         Args:
@@ -470,7 +470,7 @@ class FileManager:
                     first_line = manager.get_first_line()
                     last_modified = datetime.fromtimestamp(manager.last_modified)
                     
-                    mementos.append(MementoInfo(
+                    mementos.append(mementoInfo(
                         memento_id=memento_id,
                         first_line=first_line,
                         last_modified=last_modified
@@ -497,7 +497,7 @@ class FileManager:
                         memento_id = doc['memento_id']
                         mongodb_ids.add(memento_id)
                         
-                        # If this memento exists only in MongoDB, create MementoInfo for it
+                        # If this memento exists only in MongoDB, create mementoInfo for it
                         if memento_id not in local_ids:
                             # Create a minimal manager to get first line
                             temp_manager = FileManager(memento_id)
@@ -507,7 +507,7 @@ class FileManager:
                             timestamp = doc.get('timestamp', time.time())
                             last_modified = datetime.fromtimestamp(timestamp)
                             
-                            mementos.append(MementoInfo(
+                            mementos.append(mementoInfo(
                                 memento_id=memento_id,
                                 first_line=first_line,
                                 last_modified=last_modified

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Text Capture Module for Memento
+Text Capture Module for memento
 Captures text from active windows and focused text controls across platforms.
 """
 

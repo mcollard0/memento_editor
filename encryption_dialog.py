@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Encryption dialog for Memento.
+Encryption dialog for memento.
 Provides UI for entering passphrases and managing encryption settings.
 """
 

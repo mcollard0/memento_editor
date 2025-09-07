@@ -29,7 +29,7 @@ def test_gui_decrypt():
         # Create editor window
         editor = EditorWindow( manager );
         print( "✓ Created editor window" );
-        print( "🔒 Memento should show encrypted placeholder" );
+        print( "🔒 memento should show encrypted placeholder" );
         print( "💡 Try pressing Ctrl+D and enter 'testpass123' to decrypt" );
         print( "🚪 Close window when done testing" );
         

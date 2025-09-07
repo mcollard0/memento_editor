@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Constants and utility functions for the Memento text editor application.
+Constants and utility functions for the memento text editor application.
 """
 
 import os
 import pathlib
 
 # Application constants
-APP_NAME = "Memento"
+APP_NAME = "memento"
 VERSION = "1.0.0"
 
 # Directory paths
 HOME = pathlib.Path.home()
-MEMENTO_ROOT = HOME / ".Memento"
+MEMENTO_ROOT = HOME / ".memento"
 
 # File names
 CONTROL_FILE = "control.json"

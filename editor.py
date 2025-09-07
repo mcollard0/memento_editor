@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main editor window for the Memento text editor application.
+Main editor window for the memento text editor application.
 Provides the text editing interface with autosave functionality.
 """
 
@@ -152,8 +152,8 @@ class EditorWindow:
             encryption_menu.add_command(label="Disable Encryption", command=self._disable_encryption)
             file_menu.add_separator()
         
-        file_menu.add_command(label="New Memento", command=self._new_memento, accelerator="Ctrl+N")
-        file_menu.add_command(label="Open Memento...", command=self._open_memento, accelerator="Ctrl+O")
+        file_menu.add_command(label="New memento", command=self._new_memento, accelerator="Ctrl+N")
+        file_menu.add_command(label="Open memento...", command=self._open_memento, accelerator="Ctrl+O")
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self._on_closing, accelerator="Ctrl+Q")
         
@@ -172,7 +172,7 @@ class EditorWindow:
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
         
-        help_menu.add_command(label="About Memento", command=self._show_about)
+        help_menu.add_command(label="About memento", command=self._show_about)
     
     def _create_widgets(self):
         """Create and layout the UI widgets."""
@@ -255,7 +255,7 @@ class EditorWindow:
         try:
             # Check if memento is encrypted
             if self.file_manager.is_encrypted():
-                logger.info("Memento is encrypted")
+                logger.info("memento is encrypted")
                 if not self.current_passphrase:
                     # Show placeholder immediately - user can click to decrypt
                     logger.info("No passphrase available - showing placeholder")
@@ -370,7 +370,7 @@ class EditorWindow:
             
             # Show file save dialog
             file_path = filedialog.asksaveasfilename(
-                title="Save Memento to File",
+                title="Save memento to File",
                 defaultextension=".txt",
                 filetypes=[
                     ("Text files", "*.txt"),
@@ -393,7 +393,7 @@ class EditorWindow:
                 # Show success message
                 messagebox.showinfo(
                     "Export Successful", 
-                    f"Memento #{self.file_manager.memento_id} exported to:\n{file_path}"
+                    f"memento #{self.file_manager.memento_id} exported to:\n{file_path}"
                 )
                 
         except Exception as e:
@@ -421,7 +421,7 @@ Features:
 • Export to external files with Ctrl+S
 • Cross-platform compatibility
 
-Data stored in: ~/.Memento/
+Data stored in: ~/.memento/
 
 Dynamic Thresholds: 2, 4, 8, 16, 32, 64 characters
 Adapts based on your average typing between pauses
@@ -435,7 +435,7 @@ Ctrl+A - Select all
 Ctrl+Z - Undo
 Ctrl+Y - Redo"""
         
-        messagebox.showinfo("About Memento", about_text)
+        messagebox.showinfo("About memento", about_text)
     
     def _update_status_bar(self):
         """Update the status bar text."""

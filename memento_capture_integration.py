@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Memento Text Capture Integration
-Adds external text capture functionality to the Memento editor.
+memento Text Capture Integration
+Adds external text capture functionality to the memento editor.
 """
 
 import tkinter as tk
@@ -299,7 +299,7 @@ def test_capture_integration():
     class MockEditor:
         def __init__(self):
             self.root = tk.Tk()
-            self.root.title("Memento - Text Capture Test")
+            self.root.title("memento - Text Capture Test")
             self.root.geometry("600x400")
             
             # Create basic text widget
